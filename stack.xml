@@ -1,0 +1,17 @@
+<stack>
+  <description brief="ethzasl_xsens_driver">
+  
+     ROS Driver for XSens MT/MTi/MTi-G devices.
+  
+  </description>
+  <author>Francis Colas</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/ethzasl_xsens_driver</url>
+  <depend stack="common_msgs" /> <!-- geometry_msgs, sensor_msgs, diagnostic_msgs -->
+  <depend stack="geometry" /> <!-- tf -->
+  <depend stack="gps_umd" /> <!-- gps_common -->
+  <depend stack="ros" />
+  <depend stack="ros_comm" /> <!-- std_msgs, rospy -->
+
+</stack>

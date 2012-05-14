@@ -1,0 +1,5 @@
+<launch>
+	<node pkg="xsens_driver" type="mtnode.py" name="xsens_driver" output="screen" >
+		<param name="frame_id" value="/imu" />
+	</node>
+</launch>

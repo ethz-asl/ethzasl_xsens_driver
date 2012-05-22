@@ -111,6 +111,7 @@ class XSensDriver(object):
 		# common header
 		h = Header()
 		h.stamp = rospy.Time.now()
+		h.frame_id = self.frame_id
 		
 		# get data (None if not present)
 		temp = data.get('Temp')	# float

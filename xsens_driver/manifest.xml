@@ -15,7 +15,6 @@
   <depend package="geometry_msgs"/>
   <depend package="gps_common"/>
   <depend package="diagnostic_msgs"/>
-  <rosdep name="gps_umd"/>
 
 </package>
 

@@ -71,17 +71,21 @@ class MTDevice(object):
 		else:
 			totlength = 5 + self.length
 		while (time.time()-start)<self.timeout:
-			buf.extend(self.device.read(totlength-len(buf)))
+			while len(buf)<totlength:
+				buf.extend(self.device.read(totlength-len(buf)))
 			preamble_ind = buf.find(self.header)
 			if preamble_ind==-1:	# not found
 				# discard unexploitable data
+				#sys.stderr.write("MT: discarding (no preamble).\n")
 				del buf[:-3]
 				continue
 			elif preamble_ind:	# found but not at start
 				# discard leading bytes
+				#sys.stderr.write("MT: discarding (before preamble).\n")
 				del buf[:preamble_ind]
 				# complete message for checksum
-				buf.extend(self.device.read(totlength-len(buf)))
+				while len(buf)<totlength:
+					buf.extend(self.device.read(totlength-len(buf)))
 			if 0xFF&sum(buf[1:]):
 				#sys.stderr.write("MT: invalid checksum; discarding data and "\
 				#		"waiting for next message.\n")
@@ -115,6 +119,10 @@ class MTDevice(object):
 				length, = struct.unpack('!H', self.device.read(2))
 			# read contents and checksum
 			buf = self.device.read(length+1)
+			while (len(buf)<length+1) and ((time.time()-start)<self.timeout):
+				buf+= self.device.read(length+1-len(buf))
+			if (len(buf)<length+1):
+				continue
 			checksum = ord(buf[-1])
 			data = struct.unpack('!%dB'%length, buf[:-1])
 			if mid == MID.Error:
@@ -124,7 +132,7 @@ class MTDevice(object):
 #					' '.join("%02X"% v for v in data))
 			if 0xFF&sum(data, 0xFF+mid+length+checksum):
 				sys.stderr.write("invalid checksum; discarding data and "\
-						"waiting for next message.")
+						"waiting for next message.\n")
 				continue
 			return (mid, buf[:-1])
 		else:
@@ -337,9 +345,9 @@ class MTDevice(object):
 		self.GoToConfig()
 		self.SetOutputMode(mode)
 		self.SetOutputSettings(settings)
-		if period:
+		if period is not None:
 			self.SetPeriod(period)
-		if skipfactor:
+		if skipfactor is not None:
 			self.SetOutputSkipFactor(skipfactor)
 
 		self.GetOutputMode()

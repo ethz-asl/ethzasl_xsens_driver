@@ -228,7 +228,7 @@ class MTDevice(object):
 		"""Set the output skip factor.
 		Assume the device is in Config state."""
 		H, L = (skipfactor&0xFF00)>>8, skipfactor&0x00FF
-		self.write_ack(MID.SetOutpuSkipFactor, (H, L))
+		self.write_ack(MID.SetOutputSkipFactor, (H, L))
 
 
 	## Get data length.

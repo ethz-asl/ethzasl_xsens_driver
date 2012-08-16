@@ -57,11 +57,11 @@ class XSensDriver(object):
 		
 		self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray)
 		self.diag_msg = DiagnosticArray()
-		self.stest_stat = DiagnosticStatus(name='Self Test', level=1,
+		self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
 				message='No status information')
-		self.xkf_stat = DiagnosticStatus(name='XKF Valid', level=1,
+		self.xkf_stat = DiagnosticStatus(name='mtnode: XKF Valid', level=1,
 				message='No status information')
-		self.gps_stat = DiagnosticStatus(name='GPS Fix', level=1,
+		self.gps_stat = DiagnosticStatus(name='mtnode: GPS Fix', level=1,
 				message='No status information')
 		self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
 

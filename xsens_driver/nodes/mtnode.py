@@ -65,12 +65,12 @@ class XSensDriver(object):
 				message='No status information')
 		self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
 
-		self.imu_pub = rospy.Publisher('/imu/data', Imu)
-		self.gps_pub = rospy.Publisher('/fix', NavSatFix)
-		self.xgps_pub = rospy.Publisher('/fix_extended', GPSFix)
-		self.vel_pub = rospy.Publisher('/velocity', TwistStamped)
-		self.mag_pub = rospy.Publisher('/magnetic', Vector3Stamped)
-		self.temp_pub = rospy.Publisher('/temperature', Float32)	# decide type
+		self.imu_pub = rospy.Publisher('imu/data', Imu)
+		self.gps_pub = rospy.Publisher('fix', NavSatFix)
+		self.xgps_pub = rospy.Publisher('fix_extended', GPSFix)
+		self.vel_pub = rospy.Publisher('velocity', TwistStamped)
+		self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped)
+		self.temp_pub = rospy.Publisher('temperature', Float32)	# decide type
 		# TODO pressure, ITOW from raw GPS?
 		self.old_bGPS = 256	# publish GPS only if new
 

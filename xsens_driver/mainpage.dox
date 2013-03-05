@@ -44,4 +44,8 @@ The nodes can take the following parameters:
   try to auto-detect baudrate.
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
 
+\section dialout Permissions
+
+It might be necessary to add the user to the \c dialout group so that the node can communicate with the device.
+
 */

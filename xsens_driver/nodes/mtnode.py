@@ -51,7 +51,7 @@ class XSensDriver(object):
 
 		rospy.loginfo("MT node interface: %s at %d bd."%(device, baudrate))
 		self.mt = mtdevice.MTDevice(device, baudrate, autoconf=False,
-				configmode=True)
+				config_mode=True)
 		self.mt.ReqConfiguration()
 		self.mt.GoToMeasurement()
 

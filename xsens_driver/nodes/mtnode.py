@@ -50,10 +50,7 @@ class XSensDriver(object):
 			return
 
 		rospy.loginfo("MT node interface: %s at %d bd."%(device, baudrate))
-		self.mt = mtdevice.MTDevice(device, baudrate, autoconf=False,
-				config_mode=True)
-		self.mt.ReqConfiguration()
-		self.mt.GoToMeasurement()
+		self.mt = mtdevice.MTDevice(device, baudrate)
 
 		self.frame_id = get_param('~frame_id', '/base_imu')
 		

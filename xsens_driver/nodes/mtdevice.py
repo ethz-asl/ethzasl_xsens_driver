@@ -8,7 +8,6 @@ from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates
 
 
 
-
 ################################################################
 # MTDevice class
 ################################################################
@@ -16,7 +15,7 @@ from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates
 class MTDevice(object):
 	"""XSens MT device communication object."""
 
-	def __init__(self, port, baudrate=115200, timeout=0.1, autoconf=True,
+	def __init__(self, port, baudrate=115200, timeout=0.001, autoconf=True,
 			config_mode=False):
 		"""Open device."""
 		## serial interface to the device
@@ -25,7 +24,7 @@ class MTDevice(object):
 		self.device.flushInput()	# flush to make sure the port is ready TODO
 		self.device.flushOutput()	# flush to make sure the port is ready TODO
 		## timeout for communication
-		self.timeout = timeout
+		self.timeout = 100*timeout
 		if autoconf:
 			self.auto_config()
 		else:
@@ -55,6 +54,9 @@ class MTDevice(object):
 		packet = [0xFA, 0xFF, mid] + lendat + list(data)
 		packet.append(0xFF&(-(sum(packet[1:]))))
 		msg = struct.pack('%dB'%len(packet), *packet)
+		while self.device.read():
+			#print ".",
+			pass
 		self.device.write(msg)
 #		print "MT: Write message id 0x%02X with %d data bytes: [%s]"%(mid,length,
 #				' '.join("%02X"% v for v in data))
@@ -105,7 +107,10 @@ class MTDevice(object):
 		start = time.time()
 		while (time.time()-start)<self.timeout:
 			# read first char of preamble
+			new_start = time.time()
 			c = self.device.read()
+			while (not c) and ((time.time()-new_start)<self.timeout):
+				c = self.device.read()
 			if not c:
 				raise MTException("timeout waiting for message.")
 			if ord(c)<>0xFA:
@@ -142,13 +147,13 @@ class MTDevice(object):
 	def write_ack(self, mid, data=[]):
 		"""Send a message a read confirmation."""
 		self.write_msg(mid, data)
-		for tries in range(10):
+		for tries in range(100):
 			mid_ack, data_ack = self.read_msg()
 			if mid_ack==(mid+1):
 				break
 		else:
 			raise MTException("Ack (0x%X) expected, MID 0x%X received instead"\
-					" (after 10 tries)."%(mid+1, mid_ack))
+					" (after 100 tries)."%(mid+1, mid_ack))
 		return data_ack
 
 		
@@ -360,11 +365,15 @@ class MTDevice(object):
 	def auto_config(self):
 		"""Read configuration from device."""
 		self.GoToConfig()
-		mode = self.GetOutputMode()
-		settings = self.GetOutputSettings()
-		length = self.ReqDataLength()
+		self.ReqConfiguration()
 		self.GoToMeasurement()
-		return mode, settings, length
+		return self.mode, self.settings, self.length
+		#self.GoToConfig()
+		#mode = self.GetOutputMode()
+		#settings = self.GetOutputSettings()
+		#length = self.ReqDataLength()
+		#self.GoToMeasurement()
+		#return mode, settings, length
 
 	## Read and parse a measurement packet
 	def read_measurement(self, mode=None, settings=None):
@@ -375,8 +384,8 @@ class MTDevice(object):
 		if settings is None:
 			settings = self.settings
 		# getting data
-		data = self.read_data_msg()
-		#_, data = self.read_msg()
+		#data = self.read_data_msg()
+		_, data = self.read_msg()
 		# data object
 		output = {}
 		try:

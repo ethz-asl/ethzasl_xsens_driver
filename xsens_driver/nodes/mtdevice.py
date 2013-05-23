@@ -316,7 +316,7 @@ class MTDevice(object):
 	def ReqCurrentScenario(self):
 		"""Request the ID of the currently used XKF scenario.
 		Assume the device is in Config state."""
-		data = self.write_ack(MID.ReqCurrentScenario)
+		data = self.write_ack(MID.SetCurrentScenario)
 		## current XKF id
 		self.scenario_id, = struct.unpack('!H', data)
 		try:

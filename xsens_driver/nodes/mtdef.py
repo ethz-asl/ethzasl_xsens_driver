@@ -14,10 +14,12 @@ class MID:
 	}
 
 	# State MID
-	## Switch to measurement state
-	GoToMeasurement = 0x10
+	## Wake up procedure
+	WakeUp = 0x3E
 	## Switch to config state
 	GoToConfig = 0x30
+	## Switch to measurement state
+	GoToMeasurement = 0x10
 	## Reset device
 	Reset = 0x40
 
@@ -26,62 +28,130 @@ class MID:
 	ReqDID = 0x00
 	## DeviceID, 4 bytes: HH HL LH LL
 	DeviceID = 0x01
+	## Compatibility for XBus Master users
+	InitMT = 0x02
+	InitMTResults = 0x03
 	## Request product code in plain text
 	ReqProductCode = 0x1C
 	## Product code (max 20 bytes data)
-	ProductCode = 0x1d
+	ProductCode = 0x1D
 	## Request firmware revision
 	ReqFWRev = 0x12
 	## Firmware revision, 3 bytes: major minor rev
 	FirmwareRev = 0x13
 	## Request data length according to current configuration
-	ReqDataLength = 0x0a
+	ReqDataLength = 0x0A
 	## Data Length, 2 bytes
-	DataLength = 0x0b
-	## Request GPS status
+	DataLength = 0x0B
+	## Request GPS status (MTi-G only)
 	ReqGPSStatus = 0xA6
-	## GPS status
+	## GPS status (MTi-G only)
 	GPSStatus = 0xA7
 
 	# Device specific messages
-	## Request baudrate
-	ReqBaudrate = 0x18
-	## Set next baudrate
+	## Baudrate, 1 byte
 	SetBaudrate = 0x18
+	## Error mode, 2 bytes, 0000, 0001, 0002, 0003 (default 0001)
+	SetErrorMode = 0xDA
+	## Location ID, 2 bytes, arbitrary, default is 0
+	SetLocationID = 0x84
 	## Restore factory defaults
 	RestoreFactoryDef = 0x0E
+	## Transmit delay (RS485), 2 bytes, number of clock ticks (1/29.4912 MHz)
+	SetTransmitDelay = 0xDC
+
+	# Synchronization messages
+	## Synchronization settings (MTi-10/100 series only), N*12 bytes
+	SetSyncSettings = 0x2C
+	## SyncIn setting (MTi only), (1+) 2 or 4 bytes depending on request
+	SetSyncInSettings = 0xD6
+	## SyncOut setting (MTi/MTi-G only), (1+) 2 or 4 bytes depending on request
+	SetSyncOutSettings = 0xD8
 
 	# Configuration messages
 	## Request configuration
 	ReqConfiguration = 0x0C
 	## Configuration, 118 bytes
 	Configuration = 0x0D
-	## Set sampling period, 2 bytes
+	## Output configuration (MTi-10/100 series only), N*4 bytes
+	SetOutputConfiguration = 0xC0
+	## Sampling period (MTi/MTi-G only), 2 bytes
 	SetPeriod = 0x04
-	## Set skip factor
+	## Skip factor (MTi/MTi-G only), 2 bytes
 	SetOutputSkipFactor = 0xD4
-	## Set output mode, 2 bytes
+	## Object alignment matrix, 9*4 bytes
+	SetObjectAlignment = 0xE0
+	## Output mode (MTi/MTi-G only), 2 bytes
 	SetOutputMode = 0xD0
-	## Set output settings, 4 bytes
+	## Output settings (MTi/MTi-G only), 4 bytes
 	SetOutputSettings = 0xD2
 
 	# Data messages
-	## Data packet
+	## Request MTData message (for 65535 skip factor)
+	ReqData = 0x34
+	## Legacy data packet
 	MTData = 0x32
+	## Newer data packet (MTi-10/100 series only)
+	MTData2 = 0x36
 
 	# XKF Filter messages
+	## Heading (MTi only), 4 bytes
+	SetHeading = 0x82
+	## Reset orientation, 2 bytes
+	ResetOrientation = 0xA4
+	## Request UTC time from sensor (MTI-G and MTi-10/100 series)
+	ReqUTCTime = 0x60
+	## UTC Time (MTI-G and MTi-10/100 series), 12 bytes
+	UTCTime = 0x61
 	## Request the available XKF scenarios on the device
 	ReqAvailableScenarios = 0x62
-	## Request the ID of the currently used scenario
-	ReqCurrentScenario = 0x64
-	## Set the scenario to use, 2 bytes
+	## Available Scenarios
+	AvailableScenarios = 0x63
+	## Current XKF scenario, 2 bytes
 	SetCurrentScenario = 0x64
+	## Magnitude of the gravity used for the sensor fusion mechanism, 4 bytes
+	SetGravityMagnitude = 0x66
+	## Lever arm of the GPSin sensor coordinates (MTi-G and MTi-700 only), 3*4 bytes
+	SetLeverArmGPS = 0x68
+	## Magnetic declination (MTi-G only), 4 bytes
+	SetMagneticDeclination = 0x6A
+	## Latitude, Longitude and Altitude for local declination and gravity
+	# (MTi-10/100 series only), 24 bytes
+	SetLatLonAlt = 0x6E
+	## Processing flags (not on firmware 2.2 or lower for MTi/MTi-g), 1 byte
+	SetProcessingFlags = 0x20
+	## Initiate No Rotation procedure (not on MTi-G), 2 bytes
+	SetNoRotation = 0x22
+
+
+
+def getName(cls, value):
+	'''Return the name of the first found member of class cls with given
+	value.'''
+	for k, v in cls.__dict__.iteritems():
+		if v==val:
+			return k
+	return ''
+
+
+def getMIDName(mid):
+	'''Return the name of a message given the message id.'''
+	name = getName(MID, mid)
+	if name:
+		return name
+	if mid&1:
+		name = getName(MID, mid-1)
+		if name:
+			return name+'Ack'
+	return 'unknown MID'
 
 
 class Baudrates(object):
 	"""Baudrate information and conversion."""
 	## Baudrate mapping between ID and value
 	Baudrates = [
+		(0x80, 921600),
+		(0x0A, 921600),
 		(0x00, 460800),
 		(0x01, 230400),
 		(0x02, 115200),
@@ -92,6 +162,7 @@ class Baudrates(object):
 		(0x07,  19200),
 		(0x08,  14400),
 		(0x09,   9600),
+		(0x0B,   4800),
 		(0x80, 921600)]
 	@classmethod
 	def get_BRID(cls, baudrate):
@@ -153,3 +224,4 @@ class MTException(Exception):
 		self.message = message
 	def __str__(self):
 		return "MT error: " + self.message
+

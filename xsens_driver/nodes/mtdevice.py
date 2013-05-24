@@ -6,7 +6,8 @@ import sys, getopt, time, glob#, traceback
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates
 
-
+# Verbose flag for debugging
+verbose = False
 
 ################################################################
 # MTDevice class
@@ -58,9 +59,10 @@ class MTDevice(object):
 			#print ".",
 			pass
 		self.device.write(msg)
-#		print "MT: Write message id 0x%02X with %d data bytes: [%s]"%(mid,length,
-#				' '.join("%02X"% v for v in data))
-		#self.device.flush() #TODO evaluate
+		if verbose:
+			print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]"%
+					(mid, getMIDName(mid), length,
+							' '.join("%02X"% v for v in data))
 
 	## Low-level MTData receiving function.
 	# Take advantage of known message length.
@@ -99,8 +101,6 @@ class MTDevice(object):
 		else:
 			raise MTException("could not find MTData message.")
 
-
-
 	## Low-level message receiving function.
 	def read_msg(self):
 		"""Low-level message receiving function."""
@@ -133,8 +133,10 @@ class MTDevice(object):
 			if mid == MID.Error:
 				sys.stderr.write("MT error 0x%02X: %s."%(data[0],
 						MID.ErrorCodes[data[0]]))
-#			print "MT: Got message id 0x%02X with %d data bytes: [%s]"%(mid,length,
-#					' '.join("%02X"% v for v in data))
+			if verbose:
+				print "MT: Got message id 0x%02X with %d data bytes: [%s]"%
+						(mid, getMIDName(mid), length,
+								' '.join("%02X"% v for v in data))
 			if 0xFF&sum(data, 0xFF+mid+length+checksum):
 				sys.stderr.write("invalid checksum; discarding data and "\
 						"waiting for next message.\n")

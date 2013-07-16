@@ -134,7 +134,7 @@ class MTDevice(object):
 				sys.stderr.write("MT error 0x%02X: %s."%(data[0],
 						MID.ErrorCodes[data[0]]))
 			if verbose:
-				print "MT: Got message id 0x%02X with %d data bytes: [%s]"%
+				print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"%
 						(mid, getMIDName(mid), length,
 								' '.join("%02X"% v for v in data))
 			if 0xFF&sum(data, 0xFF+mid+length+checksum):
@@ -379,15 +379,243 @@ class MTDevice(object):
 
 	## Read and parse a measurement packet
 	def read_measurement(self, mode=None, settings=None):
+		# getting data
+		#data = self.read_data_msg()
+		mid, data = self.read_msg()
+		if mid==MID.MTData:
+			return parse_MTData(data, mode, settings)
+		elif mid==MID.MTData2:
+			return parse_MTData2(data)
+		else:
+			raise MTException("unknown data message: mid=0x%02X (%s)."%
+					(mid, getMIDName(mid))
+
+	## Parse a new MTData2 message
+	def parse_MTData2(self, data):
+		# Functions to parse each type of packet
+		def parse_temperature(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Temperature
+				o['Temp'], = struct.unpack('!'+ffmt, content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_timestamp(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# UTC Time
+				o['ns'], o['Year'], o['Month'], o['Day'], o['Hour'],\
+						o['Minute'], o['Second'], o['Flags'] =\
+						struct.unpack('!LHBBBBBB', content)
+			elif (data_id&0x00F0) == 0x20:	# Packet Counter
+				o['PacketCounter'], = struct.unpack('!H', content)
+			elif (data_id&0x00F0) == 0x30:	# Integer Time of Week
+				o['TimeOfWeek'], = struct.unpack('!L', content)
+			elif (data_id&0x00F0) == 0x40:	# GPS Age
+				o['gpsAge'], = struct.unpack('!B', content)
+			elif (data_id&0x00F0) == 0x50:	# Pressure Age
+				o['pressureAge'], = struct.unpack('!B', content)
+			elif (data_id&0x00F0) == 0x60:	# Sample Time Fine
+				o['SampleTimeFine'], = struct.unpack('!L', content)
+			elif (data_id&0x00F0) == 0x70:	# Sample Time Coarse
+				o['SampleTimeCoarse'], = struct.unpack('!L', content)
+			elif (data_id&0x00F0) == 0x80:	# Frame Range
+				o['startFrame'], o['endFrame'] = struct.unpack('!HH', content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_orientation_data(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Quaternion
+				o['Q0'], o['Q1'], o['Q2'], o['Q3'] = struct.unpack('!'+4*ffmt,
+						content)
+			elif (data_id&0x00F0) == 0x20:	# Rotation Matrix
+				o['a'], o['b'], o['c'], o['d'], o['e'], o['f'], o['g'], o['h'],\
+						o['i'] = struct.unpack('!'+9*ffmt, content)
+			elif (data_id&0x00F0) == 0x30:	# Euler Angles
+				o['Roll'], o['Pitch'], o['Yaw'] = struct.unpack('!'+3*ffmt,
+						content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_pressure(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Baro pressure
+				# FIXME is it really U4 as in the doc and not a float/double?
+				o['Pressure'], = struct.unpack('!L', content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_acceleration(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Delta V
+				o['Delta v.x'], o['Delta v.y'], o['Delta v.z'] = \
+						struc.unpack('!'+3*ffmt, content)
+			elif (data_id&0x00F0) == 0x20:	# Acceleration
+				o['accX'], o['accY'], o['accZ'] = \
+						struc.unpack('!'+3*ffmt, content)
+			elif (data_id&0x00F0) == 0x30:	# Free Acceleration
+				o['freeAccX'], o['freeAccY'], o['freeAccZ'] = \
+						struc.unpack('!'+3*ffmt, content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_position(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Altitude MSL
+				o['altMsl'], = struct.unpack('!'+ffmt, content)
+			elif (data_id&0x00F0) == 0x20:	# Altitude Ellipsoid
+				o['altEllipsoid'], = struct.unpack('!'+ffmt, content)
+			elif (data_id&0x00F0) == 0x30:	# Position ECEF
+				o['ecefX'], o['ecefY'], o['ecefZ'] = \
+						struct.unpack('!'+3*ffmt, content)
+			elif (data_id&0x00F0) == 0x40:	# LatLon
+				o['lat'], o['lon'] = struct.unpack('!'+2*ffmt, content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_angular_velocity(data_id, content, ffmt):
+			o = {}
+			# FIXME is it really 802y and 803y as in the doc?
+			if (data_id&0x00F0) == 0x20:	# Rate of Turn
+				o['gyrX'], o['gyrY'], o['gyrZ'] = \
+						struct.unpack('!'+3*ffmt, content)
+			elif (data_id&0x00F0) == 0x30:	# Delta Q
+				o['Delta q0'], o['Delta q1'], o['Delta q2'], o['Delta q3'] = \
+						struct.unpack('!'+4*ffmt, content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_GPS(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x30:	# DOP
+				o['iTOW'], o['gDOP'], o['pDOP'], o['tDOP'], o['vDOP'], \
+						o['hDOP'], o['nDOP'], o['nDOP'] = \
+						struct.unpack('!LHHHHHHH', content)
+			elif (data_id&0x00F0) == 0x40:	# SOL
+				o['iTOW'], o['fTOW'], o['Week'], o['gpsFix'], o['Flags'], \
+						o['ecefX'], o['ecefY'], o['ecefZ'], o['pAcc'], \
+						o['ecefVX'], o['ecefVY'], o['ecefVZ'], o['sAcc'], \
+						o['pDOP'], o['numSV'] = \
+						struct.unpack('!LlhBBlllLlllLHxBx', content)
+			elif (data_id&0x00F0) == 0x80:	# Time UTC
+				o['iTOW'], o['tAcc'], o['nano'], o['year'], o['month'], \
+						o['day'], o['hour'], o['min'], o['sec'], o['valid'] = \
+						struct.unpack('!LLlHBBBBBB', content)
+			elif (data_id&0x00F0) == 0xA0:	# SV Info
+				o['iTOW'], o['numCh'] = struct.unpack('!LBxx', content[:8])
+				channels = []
+				for i in range(numCh):
+					ch['chn'], ch['svid'], ch['flags'], ch['quality'], \
+							ch['cno'], ch['elev'], ch['azim'], ch['prRes'] = \
+							struct.unpack('!BBBBBbhl', content[8+12*i:20+12*i])
+					channels.append(ch)
+				o['channels'] = channels
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_SCR(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# ACC+GYR+MAG+Temperature
+				o['accX'], o['accY'], o['accZ'], o['gyrX'], o['gyrY'], \
+						o['gyrZ'], o['magX'], o['magY'], o['magZ'], o['Temp']=\
+						struct.unpack("!9Hh", content)
+			elif (data_id&0x00F0) == 0x20:	# Gyro Temperature
+				o['tempGyrX'], o['tempGyrY'], o['tempGyrZ'] = \
+						struct.unpack("!hhh", content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_analog_in(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Analog In 1
+				o['analogIn1'], = struct.unpack("!H", content)
+			elif (data_id&0x00F0) == 0x20:	# Analog In 2
+				o['analogIn2'], = struct.unpack("!H", content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_magnetic(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x20:	# Magnetic Field
+				o['magX'], o['magY'], o['magZ'] = \
+						struct.unpack("!3"+ffmt, content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_velocity(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Velocity XYZ
+				o['velX'], o['velY'], o['velZ'] = \
+						struct.unpack("!3"+ffmt, content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+		def parse_status(data_id, content, ffmt):
+			o = {}
+			if (data_id&0x00F0) == 0x10:	# Status Byte
+				o['StatusByte'], = struct.unpack("!B", content)
+			elif (data_id&0x00F0) == 0x20:	# Status Word
+				o['StatusWord'], = struct.unpack("!L", content)
+			elif (data_id&0x00F0) == 0x40:	# RSSI
+				o['RSSI'], = struct.unpack("!b", content)
+			else:
+				raise MTException("unknown packet: 0x%04X."%data_id)
+			return o
+
+		# data object
+		output = {}
+		while data:
+			try:
+				data_id, size = struct.unpack('!HB', data[:3])
+				if (data_id&0x0003) == 0x3:
+					float_format = 'd'
+				elif (data_id&0x0003) == 0x0:
+					float_format = 'f'
+				else:
+					raise MTException("fixed point precision not supported.")
+				content = data[3:3+size]
+				data = data[3+size]
+				group = data_id&0xFF00
+				if group == XDIGroup.Temperature:
+					output['Temperature'] = parse_temperature(data_id, content, ffmt)
+				elif group == XDIGroup.Timestamp:
+					output['Timestamp'] = parse_timestamp(data_id, content, ffmt)
+				elif group == XDIGroup.OrientationData:
+					output['Orientation Data'] = parse_orientation_data(data_id, content, ffmt)
+				elif group == XDIGroup.Pressure:
+					output['Pressure'] = parse_pressure(data_id, content, ffmt)
+				elif group == XDIGroup.Acceleration:
+					output['Acceleration'] = parse_acceleration(data_id, content, ffmt)
+				elif group == XDIGroup.Position:
+					output['Position'] = parse_position(data_id, content, ffmt)
+				elif group == XDIGroup.AngularVelocity:
+					output['Angular Velocity'] = parse_angular_velocity(data_id, content, ffmt)
+				elif group == XDIGroup.GPS:
+					output['GPS'] = parse_GPS(data_id, content, ffmt)
+				elif group == XDIGroup.SensorComponentReadout:
+					output['SCR'] = parse_SCR(data_id, content, ffmt)
+				elif group == XDIGroup.AnalogIn:
+					output['Analog In'] = parse_analog_in(data_id, content, ffmt)
+				elif group == XDIGroup.Magnetic:
+					output['Magnetic'] = parse_magnetic(data_id, content, ffmt)
+				elif group == XDIGroup.Velocity:
+					output['Velocity'] = parse_velocity(data_id, content, ffmt)
+				elif group == XDIGroup.Status:
+					output['Status'] = parse_status(data_id, content, ffmt)
+				else:
+					raise MTException("unknown XDI group: 0x%04X."%group)
+			except struct.error, e:
+				raise MTException("couldn't parse MTData2 message.")
+		return output
+
+	## Parse a legacy MTData message
+	def parse_MTData(self, data, mode=None, settings=None):
 		"""Read and parse a measurement packet."""
 		# getting mode
 		if mode is None:
 			mode = self.mode
 		if settings is None:
 			settings = self.settings
-		# getting data
-		#data = self.read_data_msg()
-		_, data = self.read_msg()
 		# data object
 		output = {}
 		try:

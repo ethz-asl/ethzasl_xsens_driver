@@ -219,6 +219,23 @@ class OutputSettings:
 	Coordinates_NED 		= 0x80000000
 
 
+class XDIGroup:
+	"""Values for the XDI groups."""
+	Temperature				= 0x0800
+	Timestamp				= 0x1000
+	OrientationData			= 0x2000
+	Pressure				= 0x3000
+	Acceleration			= 0x4000
+	Position				= 0x5000
+	AngularVelocity			= 0x8000
+	GPS						= 0x8800
+	SensorComponentReadout	= 0xA000
+	AnalogIn				= 0xB000
+	Magnetic				= 0xC000
+	Velocity				= 0xD000
+	Status					= 0xE000
+
+
 class MTException(Exception):
 	def __init__(self, message):
 		self.message = message

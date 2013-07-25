@@ -4,7 +4,7 @@ import struct
 
 import sys, getopt, time, glob#, traceback
 
-from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates
+from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, XDIGroup, getName, getMIDName
 
 # Verbose flag for debugging
 verbose = False

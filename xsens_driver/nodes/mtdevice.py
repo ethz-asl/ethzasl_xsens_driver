@@ -215,6 +215,7 @@ class MTDevice(object):
 		Assume the device is in Config state."""
 		H, L = (mode&0xFF00)>>8, mode&0x00FF
 		self.write_ack(MID.SetOutputMode, (H, L))
+		self.mode = mode
 
 
 	## Get current output mode.
@@ -235,6 +236,7 @@ class MTDevice(object):
 		HH, HL = (settings&0xFF000000)>>24, (settings&0x00FF0000)>>16
 		LH, LL = (settings&0x0000FF00)>>8, settings&0x000000FF
 		self.write_ack(MID.SetOutputSettings, (HH, HL, LH, LL))
+		self.settings = settings
 
 
 	## Set the period of sampling.

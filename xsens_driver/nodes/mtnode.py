@@ -117,10 +117,10 @@ class XSensDriver(object):
 		raw_data = data.get('RAW')
 		imu_data = data.get('Calib')
 		orient_data = data.get('Orient')
-		velocity_data = data.get('Velocity')
-		position_data = data.get('Position')
+		velocity_data = data.get('Vel')
+		position_data = data.get('Pos')
 		rawgps_data = data.get('RAWGPS')
-		status = data.get('Status')	# int
+		status = data.get('Stat')	# int
 
 		# create messages and default values
 		imu_msg = Imu()

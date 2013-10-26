@@ -696,18 +696,18 @@ class MTDevice(object):
 				o = {}
 				o['Lat'], o['Lon'], o['Alt'] = struct.unpack('!3f', data[:12])
 				data = data[12:]
-				output['Position'] = o
+				output['Pos'] = o
 			# velocity
 			if mode & OutputMode.Velocity:
 				o = {}
 				o['Vel_X'], o['Vel_Y'], o['Vel_Z'] = struct.unpack('!3f', data[:12])
 				data = data[12:]
-				output['Velocity'] = o
+				output['Vel'] = o
 			# status
 			if mode & OutputMode.Status:
 				status, = struct.unpack('!B', data[:1])
 				data = data[1:]
-				output['Status'] = status
+				output['Stat'] = status
 			# sample counter
 			if settings & OutputSettings.Timestamp_SampleCnt:
 				TS, = struct.unpack('!H', data[:2])

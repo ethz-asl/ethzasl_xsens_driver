@@ -498,9 +498,11 @@ class MTDevice(object):
 		def parse_GPS(data_id, content, ffmt):
 			o = {}
 			if (data_id&0x00F0) == 0x30:	# DOP
-				o['iTOW'], o['gDOP'], o['pDOP'], o['tDOP'], o['vDOP'], \
-						o['hDOP'], o['nDOP'], o['nDOP'] = \
+				o['iTOW'], g, p, t, v, h, n, e = \
 						struct.unpack('!LHHHHHHH', content)
+				o['gDOP'], o['pDOP'], o['tDOP'], o['vDOP'], o['hDOP'], \
+						o['nDOP'], o['eDOP'] = 0.01*g, 0.01*p, 0.01*t, \
+						0.01*v, 0.01*h, 0.01*n, 0.01*e
 			elif (data_id&0x00F0) == 0x40:	# SOL
 				o['iTOW'], o['fTOW'], o['Week'], o['gpsFix'], o['Flags'], \
 						o['ecefX'], o['ecefY'], o['ecefZ'], o['pAcc'], \

@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.2 (2014-03-04)
+------------------
 * catkinized
 * experimental support of mark 4 IMUs
 * fixed scaling in DOP values

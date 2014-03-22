@@ -516,6 +516,7 @@ class MTDevice(object):
 			elif (data_id&0x00F0) == 0xA0:	# SV Info
 				o['iTOW'], o['numCh'] = struct.unpack('!LBxx', content[:8])
 				channels = []
+				ch = {}
 				for i in range(numCh):
 					ch['chn'], ch['svid'], ch['flags'], ch['quality'], \
 							ch['cno'], ch['elev'], ch['azim'], ch['prRes'] = \

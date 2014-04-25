@@ -589,7 +589,7 @@ class MTDevice(object):
 				content = data[3:3+size]
 				data = data[3+size]
 				group = data_id&0xFF00
-				ffmt = 0 # FIXME: this code doesn't run without this variable, I think no one has ever tried to run this function
+				ffmt = float_format
 				if group == XDIGroup.Temperature:
 					output['Temperature'] = parse_temperature(data_id, content, ffmt)
 				elif group == XDIGroup.Timestamp:

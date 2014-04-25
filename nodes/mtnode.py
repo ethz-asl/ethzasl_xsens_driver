@@ -29,13 +29,13 @@ def get_param(name, default):
 	return v
 
 class XSensDriver(object):
-	
+
 	ENU = numpy.identity(3)
 	NED = numpy.array([[0, 1, 0], [ 1, 0, 0], [0, 0, -1]])
 	NWU = numpy.array([[0, 1, 0], [-1, 0, 0], [0, 0,  1]])
 
 	def __init__(self):
-		
+
 		device = get_param('~device', 'auto')
 		baudrate = get_param('~baudrate', 0)
 		if device=='auto':
@@ -59,23 +59,23 @@ class XSensDriver(object):
 		self.mt = mtdevice.MTDevice(device, baudrate)
 
 		self.frame_id = get_param('~frame_id', '/base_imu')
-		
+
 		frame_local     = get_param('~frame_local'    , 'NED')
 		frame_local_imu = get_param('~frame_local_imu', 'NWU')
 
 		if   frame_local == 'ENU':
-		    R = XSensDriver.ENU
+			R = XSensDriver.ENU
 		elif frame_local == 'NED':
-		    R = XSensDriver.NED
+			R = XSensDriver.NED
 		elif frame_local == 'NWU':
-		    R = XSensDriver.NWU
+			R = XSensDriver.NWU
 
 		if   frame_local_imu == 'ENU':
-		    R_IMU = XSensDriver.ENU
+			R_IMU = XSensDriver.ENU
 		elif frame_local_imu == 'NED':
-		    R_IMU = XSensDriver.NED
+			R_IMU = XSensDriver.NED
 		elif frame_local_imu == 'NWU':
-		    R_IMU = XSensDriver.NWU
+			R_IMU = XSensDriver.NWU
 
 		self.R = R.dot(R_IMU.transpose())
 
@@ -136,7 +136,7 @@ class XSensDriver(object):
 		h = Header()
 		h.stamp = rospy.Time.now()
 		h.frame_id = self.frame_id
-		
+
 		# get data (None if not present)
 		temp = data.get('Temp')	# float
 		raw_data = data.get('RAW')
@@ -162,7 +162,7 @@ class XSensDriver(object):
 		pub_mag = False
 		temp_msg = Float32()
 		pub_temp = False
-		
+
 		# fill information where it's due
 		# start by raw information that can be overriden
 		if raw_data: # TODO warn about data not calibrated
@@ -246,7 +246,7 @@ class XSensDriver(object):
 						0.0004, 0., 0., 0., 0.0004)
 				pub_imu = True
 			except KeyError:
-				pass			
+				pass
 			try:
 				x = imu_data['magX']
 				y = imu_data['magY']
@@ -345,5 +345,5 @@ def main():
 
 if __name__== '__main__':
 	main()
-	
-		
+
+

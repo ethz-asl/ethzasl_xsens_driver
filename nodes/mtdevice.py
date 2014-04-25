@@ -459,13 +459,13 @@ class MTDevice(object):
 			o = {}
 			if (data_id&0x00F0) == 0x10:	# Delta V
 				o['Delta v.x'], o['Delta v.y'], o['Delta v.z'] = \
-						struc.unpack('!'+3*ffmt, content)
+						struct.unpack('!'+3*ffmt, content)
 			elif (data_id&0x00F0) == 0x20:	# Acceleration
 				o['accX'], o['accY'], o['accZ'] = \
-						struc.unpack('!'+3*ffmt, content)
+						struct.unpack('!'+3*ffmt, content)
 			elif (data_id&0x00F0) == 0x30:	# Free Acceleration
 				o['freeAccX'], o['freeAccY'], o['freeAccZ'] = \
-						struc.unpack('!'+3*ffmt, content)
+						struct.unpack('!'+3*ffmt, content)
 			else:
 				raise MTException("unknown packet: 0x%04X."%data_id)
 			return o
@@ -516,7 +516,8 @@ class MTDevice(object):
 			elif (data_id&0x00F0) == 0xA0:	# SV Info
 				o['iTOW'], o['numCh'] = struct.unpack('!LBxx', content[:8])
 				channels = []
-				for i in range(numCh):
+				ch = {}
+				for i in range(o['numCh']):
 					ch['chn'], ch['svid'], ch['flags'], ch['quality'], \
 							ch['cno'], ch['elev'], ch['azim'], ch['prRes'] = \
 							struct.unpack('!BBBBBbhl', content[8+12*i:20+12*i])
@@ -588,6 +589,7 @@ class MTDevice(object):
 				content = data[3:3+size]
 				data = data[3+size]
 				group = data_id&0xFF00
+				ffmt = float_format
 				if group == XDIGroup.Temperature:
 					output['Temperature'] = parse_temperature(data_id, content, ffmt)
 				elif group == XDIGroup.Timestamp:

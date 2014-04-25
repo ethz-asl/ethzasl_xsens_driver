@@ -16,6 +16,8 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from math import pi, radians
 from tf.transformations import quaternion_from_matrix, quaternion_from_euler, identity_matrix
 
+import numpy
+
 def get_param(name, default):
 	try:
 		v = rospy.get_param(name)
@@ -28,6 +30,10 @@ def get_param(name, default):
 
 class XSensDriver(object):
 	
+	ENU = numpy.identity(3)
+	NED = numpy.array([[0, 1, 0], [ 1, 0, 0], [0, 0, -1]])
+	NWU = numpy.array([[0, 1, 0], [-1, 0, 0], [0, 0,  1]])
+
 	def __init__(self):
 		
 		device = get_param('~device', 'auto')
@@ -54,6 +60,25 @@ class XSensDriver(object):
 
 		self.frame_id = get_param('~frame_id', '/base_imu')
 		
+		frame_local     = get_param('~frame_local'    , 'NED')
+		frame_local_imu = get_param('~frame_local_imu', 'NWU')
+
+		if   frame_local == 'ENU':
+		    R = XSensDriver.ENU
+		elif frame_local == 'NED':
+		    R = XSensDriver.NED
+		elif frame_local == 'NWU':
+		    R = XSensDriver.NWU
+
+		if   frame_local_imu == 'ENU':
+		    R_IMU = XSensDriver.ENU
+		elif frame_local_imu == 'NED':
+		    R_IMU = XSensDriver.NED
+		elif frame_local_imu == 'NWU':
+		    R_IMU = XSensDriver.NWU
+
+		self.R = R.dot(R_IMU.transpose())
+
 		self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray)
 		self.diag_msg = DiagnosticArray()
 		self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
@@ -187,31 +212,52 @@ class XSensDriver(object):
 			temp_msg.data = temp
 		if imu_data:
 			try:
-				imu_msg.angular_velocity.x = imu_data['gyrX']
-				imu_msg.angular_velocity.y = imu_data['gyrY']
-				imu_msg.angular_velocity.z = imu_data['gyrZ']
+				x = imu_data['gyrX']
+				y = imu_data['gyrY']
+				z = imu_data['gyrZ']
+
+				v = numpy.array([x, y, z])
+				v = v.dot(self.R)
+
+				imu_msg.angular_velocity.x = v[0]
+				imu_msg.angular_velocity.y = v[1]
+				imu_msg.angular_velocity.z = v[2]
 				imu_msg.angular_velocity_covariance = (radians(0.025), 0., 0., 0.,
 						radians(0.025), 0., 0., 0., radians(0.025))
 				pub_imu = True
-				vel_msg.twist.angular.x = imu_data['gyrX']
-				vel_msg.twist.angular.y = imu_data['gyrY']
-				vel_msg.twist.angular.z = imu_data['gyrZ']
+				vel_msg.twist.angular.x = v[0]
+				vel_msg.twist.angular.y = v[1]
+				vel_msg.twist.angular.z = v[2]
 				pub_vel = True
 			except KeyError:
 				pass
 			try:
-				imu_msg.linear_acceleration.x = imu_data['accX']
-				imu_msg.linear_acceleration.y = imu_data['accY']
-				imu_msg.linear_acceleration.z = imu_data['accZ']
+				x = imu_data['accX']
+				y = imu_data['accY']
+				z = imu_data['accZ']
+
+				v = numpy.array([x, y, z])
+				v = v.dot(self.R)
+
+				imu_msg.linear_acceleration.x = v[0]
+				imu_msg.linear_acceleration.y = v[1]
+				imu_msg.linear_acceleration.z = v[2]
 				imu_msg.linear_acceleration_covariance = (0.0004, 0., 0., 0.,
 						0.0004, 0., 0., 0., 0.0004)
 				pub_imu = True
 			except KeyError:
 				pass			
 			try:
-				mag_msg.vector.x = imu_data['magX']
-				mag_msg.vector.y = imu_data['magY']
-				mag_msg.vector.z = imu_data['magZ']
+				x = imu_data['magX']
+				y = imu_data['magY']
+				z = imu_data['magZ']
+
+				v = numpy.array([x, y, z])
+				v = v.dot(self.R)
+
+				mag_msg.vector.x = v[0]
+				mag_msg.vector.y = v[1]
+				mag_msg.vector.z = v[2]
 				pub_mag = True
 			except KeyError:
 				pass

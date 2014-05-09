@@ -55,7 +55,8 @@ class MTDevice(object):
 		packet = [0xFA, 0xFF, mid] + lendat + list(data)
 		packet.append(0xFF&(-(sum(packet[1:]))))
 		msg = struct.pack('%dB'%len(packet), *packet)
-		while self.device.read():
+		start = time.time()
+		while (time.time()-start)<self.timeout and self.device.read():
 			#print ".",
 			pass
 		self.device.write(msg)

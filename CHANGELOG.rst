@@ -2,6 +2,13 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Inclusion of launch file
+* Additions and fixes from PAL robotics
+* Add local frame conversion for calibrated imu data (acc, gyr, mag)
+* Contributors: Enrique Fernandez, Francis Colas, Paul Mathieu, Sam Pfeiffer
+
 1.0.2 (2014-03-04)
 ------------------
 * catkinized

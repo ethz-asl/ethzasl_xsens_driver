@@ -60,8 +60,8 @@ class XSensDriver(object):
 
 		self.frame_id = get_param('~frame_id', '/base_imu')
 
-		frame_local     = get_param('~frame_local'    , 'NED')
-		frame_local_imu = get_param('~frame_local_imu', 'NWU')
+		frame_local     = get_param('~frame_local'    , 'ENU')
+		frame_local_imu = get_param('~frame_local_imu', 'ENU')
 
 		if   frame_local == 'ENU':
 			R = XSensDriver.ENU

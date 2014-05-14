@@ -1,8 +1,8 @@
 <launch>
     <arg name="frame_id" default="/imu"/>
 
-    <arg name="frame_local" default="NWU"/>
-    <arg name="frame_local_imu" default="NED"/>
+    <arg name="frame_local" default="ENU"/>
+    <arg name="frame_local_imu" default="ENU"/>
 
 	<node pkg="xsens_driver" type="mtnode.py" name="xsens_driver" output="screen" >
 		<param name="frame_id" value="$(arg frame_id)"/>

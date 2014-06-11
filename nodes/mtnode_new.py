@@ -330,7 +330,7 @@ class XSensDriver(object):
 		
 		def fill_from_Acceleration(o):
 			'''Fill messages with information from 'Acceleration' MTData2 block.'''
-			global pub_imu
+			global pub_imu, imu_msg
 			pub_imu = True
 			
 			# FIXME not sure we should treat all in that same way

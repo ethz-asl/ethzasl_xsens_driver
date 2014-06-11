@@ -17,6 +17,28 @@ import time
 from math import pi, radians
 from tf.transformations import quaternion_from_matrix, quaternion_from_euler, identity_matrix
 
+imu_msg = Imu()
+imu_msg.orientation_covariance = (-1., )*9
+imu_msg.angular_velocity_covariance = (-1., )*9
+imu_msg.linear_acceleration_covariance = (-1., )*9
+pub_imu = False
+gps_msg = NavSatFix()
+xgps_msg = GPSFix()
+pub_gps = False
+vel_msg = TwistStamped()
+pub_vel = False
+mag_msg = Vector3Stamped()
+pub_mag = False
+temp_msg = Float32()
+pub_temp = False
+press_msg = Float32()
+pub_press = False
+anin1_msg = UInt16()
+pub_anin1 = False
+anin2_msg = UInt16()
+pub_anin2 = False
+pub_diag = False
+
 def get_param(name, default):
 	try:
 		v = rospy.get_param(name)
@@ -80,25 +102,8 @@ class XSensDriver(object):
 		# publish a string version of all data; to be parsed by clients
 		self.str_pub = rospy.Publisher('imu_data_str', String)
 
-
-
-	def spin(self):
-		try:
-			while not rospy.is_shutdown():
-				self.spin_once()
-		# Ctrl-C signal interferes with select with the ROS signal handler
-		# should be OSError in python 3.?
-		except select.error:
-			pass
-
-	def spin_once(self):
-		'''Read data from device and publishes ROS messages.'''
-		# common header
-		h = Header()
-		h.stamp = rospy.Time.now()
-		h.frame_id = self.frame_id
-		
-		# create messages and default values
+	def reset_vars(self):
+		global imu_msg, pub_imu, gps_msg, xgps_msg, pub_gps, vel_msg, pub_vel, mag_msg, pub_mag, temp_msg, pub_temp, press_msg, pub_press, anin1_msg, pub_anin1, anin2_msg, pub_anin2, pub_diag
 		imu_msg = Imu()
 		imu_msg.orientation_covariance = (-1., )*9
 		imu_msg.angular_velocity_covariance = (-1., )*9
@@ -120,6 +125,26 @@ class XSensDriver(object):
 		anin2_msg = UInt16()
 		pub_anin2 = False
 		pub_diag = False
+
+	def spin(self):
+		try:
+			while not rospy.is_shutdown():
+				self.spin_once()
+				self.reset_vars()
+		# Ctrl-C signal interferes with select with the ROS signal handler
+		# should be OSError in python 3.?
+		except select.error:
+			pass
+
+	def spin_once(self):
+		'''Read data from device and publishes ROS messages.'''
+		# common header
+		h = Header()
+		h.stamp = rospy.Time.now()
+		h.frame_id = self.frame_id
+		
+		# set default values
+		self.reset_vars()
 		
 		def fill_from_raw(raw_data):
 			'''Fill messages with information from 'raw' MTData block.'''
@@ -328,6 +353,7 @@ class XSensDriver(object):
 			'''Fill messages with information from 'Acceleration' MTData2 block.'''
 			global pub_imu, imu_msg
 			pub_imu = True
+			
 			# FIXME not sure we should treat all in that same way
 			try:
 				x, y, z = o['Delta v.x'], o['Delta v.y'], o['Delta v.z']
@@ -341,6 +367,7 @@ class XSensDriver(object):
 				x, y, z = o['accX'], o['accY'], o['accZ']
 			except KeyError:
 				pass
+			      
 			imu_msg.linear_acceleration.x = x
 			imu_msg.linear_acceleration.y = y
 			imu_msg.linear_acceleration.z = z
@@ -455,8 +482,9 @@ class XSensDriver(object):
 
 		# get data
 		data = self.mt.read_measurement()
+		
 		# fill messages based on available data fields
-		for n, o in data:
+		for n, o in data.items():
 			try:
 				locals()[find_handler_name(n)](o)
 			except KeyError:

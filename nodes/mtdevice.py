@@ -588,7 +588,7 @@ class MTDevice(object):
 				else:
 					raise MTException("fixed point precision not supported.")
 				content = data[3:3+size]
-				data = data[3+size]
+				data = data[3+size:]
 				group = data_id&0xFF00
 				ffmt = float_format
 				if group == XDIGroup.Temperature:

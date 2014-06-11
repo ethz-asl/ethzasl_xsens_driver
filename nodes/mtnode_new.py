@@ -326,7 +326,7 @@ class XSensDriver(object):
 		
 		def fill_from_Pressure(o):
 			'''Fill messages with information from 'Pressure' MTData2 block.'''
-			global pub_press, press_msg
+			#global pub_press, press_msg
 			press_msg.data = o['Pressure']
 		
 		def fill_from_Acceleration(o):

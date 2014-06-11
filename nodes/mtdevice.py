@@ -135,7 +135,6 @@ class MTDevice(object):
 
 			waitfor(length+1)
 			buf = self.device.read(length+1)
-			start = time.time()
 			while (len(buf)<length+1) and ((time.time()-start)<self.timeout):
 				buf+= self.device.read(length+1-len(buf))
 			if (len(buf)<length+1):

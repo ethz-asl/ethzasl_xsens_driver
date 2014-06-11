@@ -578,7 +578,6 @@ class MTDevice(object):
 			return o
 
 		# data object
-		
 		output = {}
 		while data:
 			try:

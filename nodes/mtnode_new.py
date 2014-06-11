@@ -122,9 +122,6 @@ class XSensDriver(object):
 		
 		# create messages and default values
 		
-		#print gps_msg
-		#print imu_msg
-		
 		def fill_from_raw(raw_data):
 			'''Fill messages with information from 'raw' MTData block.'''
 			# don't publish raw imu data anymore

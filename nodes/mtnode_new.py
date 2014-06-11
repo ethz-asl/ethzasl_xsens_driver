@@ -99,6 +99,7 @@ class XSensDriver(object):
 		h.frame_id = self.frame_id
 		
 		# create messages and default values
+		print "vars" 
 		imu_msg = Imu()
 		imu_msg.orientation_covariance = (-1., )*9
 		imu_msg.angular_velocity_covariance = (-1., )*9
@@ -120,6 +121,10 @@ class XSensDriver(object):
 		anin2_msg = UInt16()
 		pub_anin2 = False
 		pub_diag = False
+		cena = 0
+		
+		print gps_msg
+		print imu_msg
 		
 		def fill_from_raw(raw_data):
 			'''Fill messages with information from 'raw' MTData block.'''
@@ -341,6 +346,9 @@ class XSensDriver(object):
 				x, y, z = o['accX'], o['accY'], o['accZ']
 			except KeyError:
 				pass
+			      
+			      
+			cena = 1
 			imu_msg.linear_acceleration.x = x
 			imu_msg.linear_acceleration.y = y
 			imu_msg.linear_acceleration.z = z
@@ -455,10 +463,18 @@ class XSensDriver(object):
 
 		# get data
 		data = self.mt.read_measurement()
+		
+		print(data)
+		
 		# fill messages based on available data fields
-		for n, o in data:
+		for n in data:
+			print(n)
+			print(data.get(n))
+			
+			o = data.get(n)
 			try:
 				locals()[find_handler_name(n)](o)
+				#print("ola")
 			except KeyError:
 				rospy.logwarn("Unknown MTi data packet: '%s', ignoring."%n)
 

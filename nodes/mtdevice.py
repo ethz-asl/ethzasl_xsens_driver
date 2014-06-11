@@ -135,6 +135,7 @@ class MTDevice(object):
 
 			waitfor(length+1)
 			buf = self.device.read(length+1)
+			start = time.time()
 			while (len(buf)<length+1) and ((time.time()-start)<self.timeout):
 				buf+= self.device.read(length+1-len(buf))
 			if (len(buf)<length+1):
@@ -577,6 +578,8 @@ class MTDevice(object):
 			return o
 
 		# data object
+		
+		print("message received")
 		output = {}
 		while data:
 			try:
@@ -588,7 +591,7 @@ class MTDevice(object):
 				else:
 					raise MTException("fixed point precision not supported.")
 				content = data[3:3+size]
-				data = data[3+size]
+				data = data[3+size:]
 				group = data_id&0xFF00
 				ffmt = float_format
 				if group == XDIGroup.Temperature:

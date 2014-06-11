@@ -579,7 +579,6 @@ class MTDevice(object):
 
 		# data object
 		
-		print("message received")
 		output = {}
 		while data:
 			try:

@@ -17,6 +17,28 @@ import time
 from math import pi, radians
 from tf.transformations import quaternion_from_matrix, quaternion_from_euler, identity_matrix
 
+imu_msg = Imu()
+imu_msg.orientation_covariance = (-1., )*9
+imu_msg.angular_velocity_covariance = (-1., )*9
+imu_msg.linear_acceleration_covariance = (-1., )*9
+pub_imu = False
+gps_msg = NavSatFix()
+xgps_msg = GPSFix()
+pub_gps = False
+vel_msg = TwistStamped()
+pub_vel = False
+mag_msg = Vector3Stamped()
+pub_mag = False
+temp_msg = Float32()
+pub_temp = False
+press_msg = Float32()
+pub_press = False
+anin1_msg = UInt16()
+pub_anin1 = False
+anin2_msg = UInt16()
+pub_anin2 = False
+pub_diag = False
+
 def get_param(name, default):
 	try:
 		v = rospy.get_param(name)
@@ -99,32 +121,9 @@ class XSensDriver(object):
 		h.frame_id = self.frame_id
 		
 		# create messages and default values
-		print "vars" 
-		imu_msg = Imu()
-		imu_msg.orientation_covariance = (-1., )*9
-		imu_msg.angular_velocity_covariance = (-1., )*9
-		imu_msg.linear_acceleration_covariance = (-1., )*9
-		pub_imu = False
-		gps_msg = NavSatFix()
-		xgps_msg = GPSFix()
-		pub_gps = False
-		vel_msg = TwistStamped()
-		pub_vel = False
-		mag_msg = Vector3Stamped()
-		pub_mag = False
-		temp_msg = Float32()
-		pub_temp = False
-		press_msg = Float32()
-		pub_press = False
-		anin1_msg = UInt16()
-		pub_anin1 = False
-		anin2_msg = UInt16()
-		pub_anin2 = False
-		pub_diag = False
-		cena = 0
 		
-		print gps_msg
-		print imu_msg
+		#print gps_msg
+		#print imu_msg
 		
 		def fill_from_raw(raw_data):
 			'''Fill messages with information from 'raw' MTData block.'''
@@ -326,13 +325,14 @@ class XSensDriver(object):
 		
 		def fill_from_Pressure(o):
 			'''Fill messages with information from 'Pressure' MTData2 block.'''
-			#global pub_press, press_msg
+			global pub_press, press_msg
 			press_msg.data = o['Pressure']
 		
 		def fill_from_Acceleration(o):
 			'''Fill messages with information from 'Acceleration' MTData2 block.'''
-			global pub_imu, imu_msg
+			global pub_imu
 			pub_imu = True
+			
 			# FIXME not sure we should treat all in that same way
 			try:
 				x, y, z = o['Delta v.x'], o['Delta v.y'], o['Delta v.z']
@@ -347,8 +347,6 @@ class XSensDriver(object):
 			except KeyError:
 				pass
 			      
-			      
-			cena = 1
 			imu_msg.linear_acceleration.x = x
 			imu_msg.linear_acceleration.y = y
 			imu_msg.linear_acceleration.z = z
@@ -464,17 +462,12 @@ class XSensDriver(object):
 		# get data
 		data = self.mt.read_measurement()
 		
-		print(data)
-		
 		# fill messages based on available data fields
 		for n in data:
-			print(n)
-			print(data.get(n))
 			
 			o = data.get(n)
 			try:
 				locals()[find_handler_name(n)](o)
-				#print("ola")
 			except KeyError:
 				rospy.logwarn("Unknown MTi data packet: '%s', ignoring."%n)
 

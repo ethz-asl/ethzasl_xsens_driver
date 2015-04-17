@@ -192,15 +192,15 @@ class XSensDriver(object):
 		def fill_from_Orient(orient_data):
 			'''Fill messages with information from 'orientation' MTData block.'''
 			self.pub_imu = True
-			if orient.has_key('quaternion'):
-				w, x, y, z = orient['quaternion']
-			elif orient.has_key('roll'):
+			if orient_data.has_key('quaternion'):
+				w, x, y, z = orient_data['quaternion']
+			elif orient_data.has_key('roll'):
 				# FIXME check that Euler angles are in radians
-				x, y, z, w = quaternion_from_euler(radians(orient['roll']),
-						radians(orient['pitch']), radians(orient['yaw']))
-			elif orient.has_key('matrix'):
+				x, y, z, w = quaternion_from_euler(radians(orient_data['roll']),
+						radians(orient_data['pitch']), radians(orient_data['yaw']))
+			elif orient_data.has_key('matrix'):
 				m = identity_matrix()
-				m[:3,:3] = orient['matrix']
+				m[:3,:3] = orient_data['matrix']
 				x, y, z, w = quaternion_from_matrix(m)
 			self.imu_msg.orientation.x = x
 			self.imu_msg.orientation.y = y

@@ -111,12 +111,10 @@ class MTDevice(object):
 			# Makes sure the buffer has 'size' bytes.
 			def waitfor(size=1):
 				read_buf = self.device.read(size)
-				trials = 0
-				while trials < 5:
+				for _ in range(5):
 					if len(read_buf) == size:
 						return read_buf
 					read_buf += self.device.read(size-len(read_buf))
-					trials +=1
 				raise MTException("timeout waiting for message.")
 
 			if ord(waitfor())<>0xFA:

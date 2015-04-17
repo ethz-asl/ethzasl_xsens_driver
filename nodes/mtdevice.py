@@ -16,7 +16,7 @@ verbose = False
 class MTDevice(object):
 	"""XSens MT device communication object."""
 
-	def __init__(self, port, baudrate=115200, timeout=0.001, autoconf=True,
+	def __init__(self, port, baudrate=115200, timeout=0.002, autoconf=True,
 			config_mode=False):
 		"""Open device."""
 		## serial interface to the device
@@ -110,33 +110,28 @@ class MTDevice(object):
 
 			# Makes sure the buffer has 'size' bytes.
 			def waitfor(size=1):
-				while self.device.inWaiting() < size:
-					if time.time()-new_start >= self.timeout:
-						raise MTException("timeout waiting for message.")
-
-			c = self.device.read()
-			while (not c) and ((time.time()-new_start)<self.timeout):
-				c = self.device.read()
-			if not c:
+				read_buf = self.device.read(size)
+				trials = 0
+				while trials < 5:
+					if len(read_buf) == size:
+						return read_buf
+					read_buf += self.device.read(size-len(read_buf))
+					trials +=1
 				raise MTException("timeout waiting for message.")
-			if ord(c)<>0xFA:
+
+			if ord(waitfor())<>0xFA:
 				continue
 			# second part of preamble
-			waitfor(3)
-			if ord(self.device.read())<>0xFF:	# we assume no timeout anymore
+			if ord(waitfor())<>0xFF:	# we assume no timeout anymore
 				continue
 			# read message id and length of message
 			#msg = self.device.read(2)
-			mid, length = struct.unpack('!BB', self.device.read(2))
+			mid, length = struct.unpack('!BB', waitfor(2))
 			if length==255:	# extended length
-				waitfor(2)
-				length, = struct.unpack('!H', self.device.read(2))
+				length, = struct.unpack('!H', waitfor(2))
 			# read contents and checksum
 
-			waitfor(length+1)
-			buf = self.device.read(length+1)
-			while (len(buf)<length+1) and ((time.time()-start)<self.timeout):
-				buf+= self.device.read(length+1-len(buf))
+			buf = waitfor(length+1)
 			if (len(buf)<length+1):
 				continue
 			checksum = ord(buf[-1])

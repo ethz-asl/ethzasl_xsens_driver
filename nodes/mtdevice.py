@@ -111,7 +111,7 @@ class MTDevice(object):
 			# Makes sure the buffer has 'size' bytes.
 			def waitfor(size=1):
 				read_buf = self.device.read(size)
-				for _ in range(5):
+				for _ in range(10):
 					if len(read_buf) == size:
 						return read_buf
 					read_buf += self.device.read(size-len(read_buf))

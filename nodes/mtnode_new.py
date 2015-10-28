@@ -56,7 +56,7 @@ class XSensDriver(object):
 
 		self.frame_id = get_param('~frame_id', '/base_imu')
 		
-		self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray)
+		self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=10)
 		self.diag_msg = DiagnosticArray()
 		self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
 				message='No status information')
@@ -66,20 +66,20 @@ class XSensDriver(object):
 				message='No status information')
 		self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
 
-		self.imu_pub = rospy.Publisher('imu/data', Imu)
-		self.gps_pub = rospy.Publisher('fix', NavSatFix)
-		self.xgps_pub = rospy.Publisher('fix_extended', GPSFix)
-		self.vel_pub = rospy.Publisher('velocity', TwistStamped)
-		self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped)
-		self.temp_pub = rospy.Publisher('temperature', Float32)	# decide type+header
-		self.press_pub = rospy.Publisher('pressure', Float32) # decide type+header
-		self.analog_in1_pub = rospy.Publisher('analog_in1', UInt16) # decide type+header
-		self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16) # decide type+header
+		self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
+		self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
+		self.xgps_pub = rospy.Publisher('fix_extended', GPSFix, queue_size=10)
+		self.vel_pub = rospy.Publisher('velocity', TwistStamped, queue_size=10)
+		self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped, queue_size=10)
+		self.temp_pub = rospy.Publisher('temperature', Float32, queue_size=10)	# decide type+header
+		self.press_pub = rospy.Publisher('pressure', Float32, queue_size=10) # decide type+header
+		self.analog_in1_pub = rospy.Publisher('analog_in1', UInt16, queue_size=10) # decide type+header
+		self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16, queue_size=10) # decide type+header
 		# TODO pressure, ITOW from raw GPS?
 		self.old_bGPS = 256	# publish GPS only if new
 
 		# publish a string version of all data; to be parsed by clients
-		self.str_pub = rospy.Publisher('imu_data_str', String)
+		self.str_pub = rospy.Publisher('imu_data_str', String, queue_size=10)
 
 	def reset_vars(self):
 		self.imu_msg = Imu()

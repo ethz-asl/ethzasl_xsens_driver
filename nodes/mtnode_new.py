@@ -436,6 +436,10 @@ class XSensDriver(object):
 				pass
 			# TODO RSSI
 
+		def fill_from_Sample(o):
+			'''Catch 'Sample' MTData blocks.'''
+			rospy.logdebug("Got MTi data packet: 'Sample', ignored!")
+
 		def find_handler_name(name):
 			return "fill_from_%s"%(name.replace(" ", "_"))
 

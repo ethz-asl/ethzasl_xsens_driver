@@ -38,6 +38,7 @@ class XSensDriver(object):
 
 		device = get_param('~device', 'auto')
 		baudrate = get_param('~baudrate', 0)
+		timeout = get_param('~timeout', 0.002)
 		if device=='auto':
 			devs = mtdevice.find_devices()
 			if devs:
@@ -56,7 +57,7 @@ class XSensDriver(object):
 			return
 
 		rospy.loginfo("MT node interface: %s at %d bd."%(device, baudrate))
-		self.mt = mtdevice.MTDevice(device, baudrate)
+		self.mt = mtdevice.MTDevice(device, baudrate, timeout)
 
 		self.frame_id = get_param('~frame_id', '/base_imu')
 

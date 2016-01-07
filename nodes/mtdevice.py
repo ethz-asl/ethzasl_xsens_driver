@@ -26,6 +26,7 @@ class MTDevice(object):
 		self.device.flushOutput()	# flush to make sure the port is ready TODO
 		## timeout for communication
 		self.timeout = 100*timeout
+		self.logfile = None
 		if autoconf:
 			self.auto_config()
 		else:
@@ -40,6 +41,10 @@ class MTDevice(object):
 		if config_mode:
 			self.GoToConfig()
 
+	def set_logfile(self, logfile):
+		"""Set the log file for writing received messages"""
+		self.logfile = logfile
+        
 	############################################################
 	# Low-level communication
 	############################################################
@@ -125,8 +130,10 @@ class MTDevice(object):
 			# read message id and length of message
 			#msg = self.device.read(2)
 			mid, length = struct.unpack('!BB', waitfor(2))
+			isExtendedLength = False
 			if length==255:	# extended length
 				length, = struct.unpack('!H', waitfor(2))
+				isExtendedLength = True
 			# read contents and checksum
 
 			buf = waitfor(length+1)
@@ -140,7 +147,20 @@ class MTDevice(object):
 			if verbose:
 				print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"%(mid, getMIDName(mid), length,
 								' '.join("%02X"% v for v in data))
-			if 0xFF&sum(data, 0xFF+mid+length+checksum):
+			# write to logfile
+			if self.logfile:
+				if isExtendedLength:
+					self.logfile.write(struct.pack('!BBBBH', 0xFA, 0xFF, mid, 0xFF, length))
+				else:
+					self.logfile.write(struct.pack('!BBBB', 0xFA, 0xFF, mid, length))
+				self.logfile.write(buf)
+			# checksum 
+			chkStart = 0xFF+mid+checksum
+			if isExtendedLength:
+				chkStart += 0xFF+(0xFF&(length>>8))+(length&0xFF)
+			else:
+				chkStart += length
+			if (0xFF&sum(data, chkStart)):
 				sys.stderr.write("invalid checksum; discarding data and "\
 						"waiting for next message.\n")
 				continue
@@ -338,6 +358,12 @@ class MTDevice(object):
 		else:
 			self.scenario_label = ""
 		return self.scenario_id, self.scenario_label
+
+
+	def ReqEmts(self):
+		"""Ask for the extended Motion Tracker Specification data of the device.
+		Assume the device is in Config state."""
+		return self.write_ack(MID.ReqEmts, (0, 255, ))
 
 
 	## Sets the XKF scenario to use.

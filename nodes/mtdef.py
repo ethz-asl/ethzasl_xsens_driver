@@ -10,7 +10,8 @@ class MID:
         0x04: "Invalid message",
         0x1E: "Timer overflow",
         0x20: "Invalid baudrate",
-        0x21: "Invalid parameter"
+        0x21: "Invalid parameter",
+        0x28: "Device error, try updating the firmware"
     }
 
     # State MID

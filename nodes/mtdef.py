@@ -16,6 +16,8 @@ class MID:
     # State MID
     # Wake up procedure
     WakeUp = 0x3E
+    # Wake up ack to put device in config mode
+    WakeUpAck = 0x3F
     # Switch to config state
     GoToConfig = 0x30
     # Switch to measurement state

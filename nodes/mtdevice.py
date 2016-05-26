@@ -163,9 +163,17 @@ class MTDevice(object):
     ############################################################
     # High-level functions
     ############################################################
-    def Reset(self):
-        """Reset MT device."""
+    def Reset(self, go_to_config=False):
+        """Reset MT device.
+
+        If go_to_config then send WakeUpAck in order to leave the device in
+        config mode.
+        """
         self.write_ack(MID.Reset)
+        if go_to_config:
+            mid, _ = self.read_msg()
+            if mid == MID.WakeUp:
+                self.write_msg(MID.WakeUpAck)
 
     def GoToConfig(self):
         """Place MT device in configuration mode."""
@@ -700,7 +708,7 @@ class MTDevice(object):
         # self.device.flush()
         time.sleep(0.01)
         self.read_msg()
-        self.write_msg(0x3f)
+        self.write_msg(MID.WakeUpAck)
 
 
 ################################################################

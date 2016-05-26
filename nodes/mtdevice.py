@@ -214,11 +214,85 @@ class MTDevice(object):
             self_test_results.append((name, (data >> i) & 1))
         return self_test_results
 
+    def GetBaudrate(self):
+        """Get the current baudrate id of the device."""
+        self.GoToConfig()
+        data = self.write_ack(MID.SetBaudrate)
+        return data[0]
+
+    def SetBaudrate(self, brid):
+        """Set the baudrate of the device using the baudrate id."""
+        self.GoToConfig()
+        self.write_ack(MID.SetBaudrate, (brid,))
+
+    def GetErrorMode(self):
+        """Get the current error mode of the device."""
+        self.GoToConfig()
+        data = self.write_ack(MID.SetErrorMode)
+        error_mode, = struct.unpack('!H', data)
+        return error_mode
+
+    def SetErrorMode(self, error_mode):
+        """Set the error mode of the device.
+
+        The error mode defines the way the device deals with errors (expect
+        message errors):
+            0x0000: ignore any errors except message handling errors,
+            0x0001: in case of missing sampling instance: increase sample
+                counter and do not send error message,
+            0x0002: in case of missing sampling instance: increase sample
+                counter and send error message,
+            0x0003: in case of non-message handling error, an error message is
+                sent and the device will go into Config State.
+        """
+        self.GoToConfig()
+        data = struct.pack('!H', error_mode)
+        self.write_ack(MID.SetErrorMode, data)
+
+    def GetOptionFlags(self):
+        """Get the option flags (MTi-1 series)."""
+        self.GoToConfig()
+        data = self.write_ack(MID.SetOptionFlags)
+        set_flags, clear_flags = struct.unpack('!II', data)
+        return set_flags, clear_flags
+
+    def SetOptionFlags(self, set_flags, clear_flags):
+        """Set the option flags (MTi-1 series)."""
+        self.GoToConfig()
+        data = struct.pack('!II', set_flags, clear_flags)
+        self.write_ack(MID.SetOptionFlags, data)
+
+    def GetLocationID(self):
+        """Get the location ID of the device."""
+        self.GoToConfig()
+        data = self.write_ack(MID.SetLocationID)
+        location_id, = struct.unpack('!H', data)
+        return location_id
+
+    def SetLocationID(self, location_id):
+        """Set the location ID of the device (arbitrary)."""
+        self.GoToConfig()
+        data = struct.pack('!H', location_id)
+        self.write_ack(MID.SetLocationID, data)
+
     def RestoreFactoryDefaults(self):
         """Restore MT device configuration to factory defaults (soft version).
         """
         self.GoToConfig()
         self.write_ack(MID.RestoreFactoryDef)
+
+    def GetTransmitDelay(self):
+        """Get the transmission delay (only RS485)."""
+        self.GoToConfig()
+        data = self.write_ack(MID.SetTransmitDelay)
+        transmit_delay, = struct.unpack('!H', data)
+        return transmit_delay
+
+    def SetTransmitDelay(self, transmit_delay):
+        """Set the transmission delay (only RS485)."""
+        self.GoToConfig()
+        data = struct.pack('!H', transmit_delay)
+        self.write_ack(MID.SetTransmitDelay, data)
 
     def GetOutputMode(self):
         """Get current output mode.
@@ -302,12 +376,6 @@ class MTDevice(object):
                 'number of devices': num,
                 'device ID': deviceID}
         return conf
-
-    def SetBaudrate(self, brid):
-        """Set the baudrate of the device using the baudrate id.
-        Assume the device is in Config state.
-        """
-        self.write_ack(MID.SetBaudrate, (brid,))
 
     def ReqAvailableScenarios(self):
         """Request the available XKF scenarios on the device.

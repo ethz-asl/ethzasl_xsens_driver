@@ -183,6 +183,37 @@ class MTDevice(object):
         """Place MT device in measurement mode."""
         self.write_ack(MID.GoToMeasurement)
 
+    def GetDeviceID(self):
+        """Get the device identifier."""
+        self.GoToConfig()
+        data = self.write_ack(MID.ReqDID)
+        deviceID, = struct.unpack('!I', data)
+        return deviceID
+
+    def GetProductCode(self):
+        """Get the product code."""
+        self.GoToConfig()
+        data = self.write_ack(MID.ReqProductCode)
+        return data
+
+    def GetFirmwareRev(self):
+        """Get the firmware version."""
+        self.GoToConfig()
+        data = self.write_ack(MID.ReqFWRev)
+        major, minor, revision = struct.unpack('!BBB', data)
+        return (major, minor, revision)
+
+    def RunSelfTest(self):
+        """Run the built-in self test."""
+        self.GoToConfig()
+        data = self.write_ack(MID.RunSelfTest)
+        bit_names = ['accX', 'accY', 'accZ', 'gyrX', 'gyrY', 'gyrZ',
+                    'magX', 'magY', 'magZ']
+        self_test_results = []
+        for i, name in enumerate(bit_names):
+            self_test_results.append((name, (data >> i) & 1))
+        return self_test_results
+
     def RestoreFactoryDefaults(self):
         """Restore MT device configuration to factory defaults (soft version).
         """

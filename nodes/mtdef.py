@@ -1,7 +1,7 @@
 """Constant and messages definition for MT communication."""
 
 
-class DeviceStates:
+class DeviceState:
     """State of the device"""
     # measurement state
     Measurement = 0

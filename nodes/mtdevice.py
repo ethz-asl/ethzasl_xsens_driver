@@ -317,70 +317,18 @@ class MTDevice(object):
         """Get the synchronisation settings."""
         self._ensure_config_state()
         data = self.write_ack(MID.SetSyncSettings)
-        N = len(data)/12
-        sync_settings = []
-        for i in range(N):
-            sync_settings.append(struct.unpack('!BBBBHHHH',
-                                               data[12*i:12*(i+1)]))
+        sync_settings = [struct.unpack('!BBBBHHHH', data[o:o+12])
+                         for o in range(0, len(data), 12)]
         return sync_settings
 
     def SetSyncSettings(self, sync_settings):
-        """Set the synchronisation settings"""
+        """Set the synchronisation settings (mark IV)"""
         self._ensure_config_state()
         data = b''.join(struct.pack('!BBBBHHHH', *sync_setting)
                         for sync_setting in sync_settings)
         self.write_ack(MID.SetSyncSettings, data)
 
-    def GetOutputMode(self):
-        """Get current output mode."""
-        self._ensure_config_state()
-        data = self.write_ack(MID.SetOutputMode)
-        self.mode, = struct.unpack('!H', data)
-        return self.mode
-
-    def SetOutputMode(self, mode):
-        """Select which information to output."""
-        self._ensure_config_state()
-        H, L = (mode & 0xFF00) >> 8, mode & 0x00FF
-        self.write_ack(MID.SetOutputMode, (H, L))
-        self.mode = mode
-
-    def GetOutputSettings(self):
-        """Get current output mode."""
-        self._ensure_config_state()
-        data = self.write_ack(MID.SetOutputSettings)
-        self.settings, = struct.unpack('!I', data)
-        return self.settings
-
-    def SetOutputSettings(self, settings):
-        """Select how to output the information."""
-        self._ensure_config_state()
-        HH, HL = (settings & 0xFF000000) >> 24, (settings & 0x00FF0000) >> 16
-        LH, LL = (settings & 0x0000FF00) >> 8, settings & 0x000000FF
-        self.write_ack(MID.SetOutputSettings, (HH, HL, LH, LL))
-        self.settings = settings
-
-    def SetPeriod(self, period):
-        """Set the period of sampling."""
-        self._ensure_config_state()
-        H, L = (period & 0xFF00) >> 8, period & 0x00FF
-        self.write_ack(MID.SetPeriod, (H, L))
-
-    def SetOutputSkipFactor(self, skipfactor):
-        """Set the output skip factor."""
-        self._ensure_config_state()
-        H, L = (skipfactor & 0xFF00) >> 8, skipfactor & 0x00FF
-        self.write_ack(MID.SetOutputSkipFactor, (H, L))
-
-    def ReqDataLength(self):
-        """Get data length."""
-        self._ensure_config_state()
-        data = self.write_ack(MID.ReqDataLength)
-        self.length, = struct.unpack('!H', data)
-        self.header = '\xFA\xFF\x32'+chr(self.length)
-        return self.length
-
-    def ReqConfiguration(self):
+    def GetConfiguration(self):
         """Ask for the current configuration of the MT device."""
         self._ensure_config_state()
         config = self.write_ack(MID.ReqConfiguration)
@@ -405,6 +353,126 @@ class MTDevice(object):
                 'number of devices': num,
                 'device ID': deviceID}
         return conf
+
+    def GetOutputConfiguration(self):
+        """Get the output configuration of the device (mark IV)."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetOutputConfiguration)
+        output_configuration = [struct.unpack('!HH', data[o:o+4])
+                                for o in range(0, len(data), 4)]
+        return output_configuration
+
+    def SetOutputConfiguration(self, output_configuration):
+        """Set the output configuration of the device (mark IV)."""
+        self._ensure_config_state()
+        data = b''.join(struct.pack('!HH', *output)
+                        for output in output_configuration)
+        self.write_ack(MID.SetOutputConfiguration, data)
+
+    def GetStringOutputType(self):
+        """Get the NMEA data output configuration."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetStringOutputType)
+        string_output_type, = struct.unpack('!H', data)
+        return string_output_type
+
+    def SetStringOutputType(self, string_output_type):
+        """Set the configuration of the NMEA data output."""
+        self._ensure_config_state()
+        data = struct.pack('!H', string_output_type)
+        self.write_ack(MID.SetStringOutputType, data)
+
+    def GetPeriod(self):
+        """Get the sampling period."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetPeriod)
+        period, = struct.unpack('!H', data)
+        return period
+
+    def SetPeriod(self, period):
+        """Set the sampling period."""
+        self._ensure_config_state()
+        data = struct.pack('!H', period)
+        self.write_ack(MID.SetPeriod, data)
+
+    def GetAlignmentRotation(self, parameter):
+        """Get the object alignment.
+
+        parameter indicates the desired alignment quaternion:
+            0 for sensor alignment (RotSensor),
+            1 for local alignment (RotLocal).
+        """
+        self._ensure_config_state()
+        data = struct.pack('!B', parameter)
+        data = self.write_ack(MID.SetAlignmentRotation, data)
+        q0, q1, q2, q3 = struct.unpack('!ffff', data)
+        return q0, q1, q2, q3
+
+    def SetAlignmentRotation(self, parameter, quaternion):
+        """Set the object alignment.
+
+        parameter indicates the desired alignment quaternion:
+            0 for sensor alignment (RotSensor),
+            1 for local alignment (RotLocal).
+        """
+        self._ensure_config_state()
+        data = struct.pack('!Bffff', parameter, *quaternion)
+        self.write_ack(MID.SetAlignmentRotation, data)
+
+    def GetOutputMode(self):
+        """Get current output mode."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetOutputMode)
+        self.mode, = struct.unpack('!H', data)
+        return self.mode
+
+    def SetOutputMode(self, mode):
+        """Select which information to output."""
+        self._ensure_config_state()
+        data = struct.pack('!H', mode)
+        self.write_ack(MID.SetOutputMode, data)
+        self.mode = mode
+
+    def GetExtOutputMode(self):
+        """Get current extended output mode (for alternative UART)."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetExtOutputMode)
+        ext_mode, = struct.unpack('!H', data)
+        return ext_mode
+
+    def SetExtOutputMode(self, ext_mode):
+        """Set extended output mode (for alternative UART)."""
+        self._ensure_config_state()
+        data = struct.pack('!H', ext_mode)
+        self.write_ack(MID.SetExtOutputMode, data)
+
+    def GetOutputSettings(self):
+        """Get current output mode."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetOutputSettings)
+        self.settings, = struct.unpack('!I', data)
+        return self.settings
+
+    def SetOutputSettings(self, settings):
+        """Select how to output the information."""
+        self._ensure_config_state()
+        data = struct.pack('!I', settings)
+        self.write_ack(MID.SetOutputSettings, data)
+        self.settings = settings
+
+    def SetOutputSkipFactor(self, skipfactor):
+        """Set the output skip factor."""
+        self._ensure_config_state()
+        H, L = (skipfactor & 0xFF00) >> 8, skipfactor & 0x00FF
+        self.write_ack(MID.SetOutputSkipFactor, (H, L))
+
+    def ReqDataLength(self):
+        """Get data length."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.ReqDataLength)
+        self.length, = struct.unpack('!H', data)
+        self.header = '\xFA\xFF\x32'+chr(self.length)
+        return self.length
 
     def ReqAvailableScenarios(self):
         """Request the available XKF scenarios on the device."""
@@ -463,7 +531,7 @@ class MTDevice(object):
 
     def auto_config(self):
         """Read configuration from device."""
-        self.ReqConfiguration()
+        self.GetConfiguration()
         return self.mode, self.settings, self.length
 
     def read_measurement(self, mode=None, settings=None):
@@ -1065,7 +1133,7 @@ def main():
         if 'inspect' in actions:
             mt.GoToConfig()
             print "Device: %s at %d Bd:" % (device, baudrate)
-            print "General configuration:", mt.ReqConfiguration()
+            print "General configuration:", mt.GetConfiguration()
             print "Available scenarios:", mt.ReqAvailableScenarios()
             print "Current scenario: %s (id: %d)" %\
                 mt.ReqCurrentScenario()[::-1]

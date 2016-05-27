@@ -313,6 +313,24 @@ class MTDevice(object):
         data = struct.pack('!H', transmit_delay)
         self.write_ack(MID.SetTransmitDelay, data)
 
+    def GetSyncSettings(self):
+        """Get the synchronisation settings."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetSyncSettings)
+        N = len(data)/12
+        sync_settings = []
+        for i in range(N):
+            sync_settings.append(struct.unpack('!BBBBHHHH',
+                                               data[12*i:12*(i+1)]))
+        return sync_settings
+
+    def SetSyncSettings(self, sync_settings):
+        """Set the synchronisation settings"""
+        self._ensure_config_state()
+        data = b''.join(struct.pack('!BBBBHHHH', *sync_setting)
+                        for sync_setting in sync_settings)
+        self.write_ack(MID.SetSyncSettings, data)
+
     def GetOutputMode(self):
         """Get current output mode."""
         self._ensure_config_state()

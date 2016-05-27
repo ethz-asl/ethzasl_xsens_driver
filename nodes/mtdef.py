@@ -1,6 +1,14 @@
 """Constant and messages definition for MT communication."""
 
 
+class DeviceStates:
+    """State of the device"""
+    # measurement state
+    Measurement = 0
+    # config state
+    Config = 1
+
+
 class MID:
     """Values for the message id (MID)"""
     # Error message, 1 data byte

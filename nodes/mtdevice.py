@@ -7,7 +7,7 @@ import time
 import glob
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
-    XDIGroup, getMIDName
+    XDIGroup, getMIDName, DeviceState
 
 # Verbose flag for debugging
 verbose = False
@@ -29,6 +29,8 @@ class MTDevice(object):
         self.device.flushOutput()    # flush to make sure the port is ready TODO
         # timeout for communication
         self.timeout = 100*timeout
+        # state of the device
+        self.state = None
         if autoconf:
             self.auto_config()
         else:
@@ -160,6 +162,16 @@ class MTDevice(object):
                               " (after 100 tries)." % (mid+1, mid_ack))
         return data_ack
 
+    def _ensure_config_state(self):
+        """Switch device to config state if necessary."""
+        if self.state != DeviceState.Config:
+            self.GoToConfig()
+
+    def _ensure_measurement_state(self):
+        """Switch device to measurement state if necessary."""
+        if self.state != DeviceState.Measurement:
+            self.GoToMeasurement()
+
     ############################################################
     # High-level functions
     ############################################################
@@ -171,44 +183,51 @@ class MTDevice(object):
         """
         self.write_ack(MID.Reset)
         if go_to_config:
+            time.sleep(0.01)
             mid, _ = self.read_msg()
             if mid == MID.WakeUp:
                 self.write_msg(MID.WakeUpAck)
+                self.state = DeviceState.Config
+        else:
+            self.state = DeviceState.Measurement
 
     def GoToConfig(self):
         """Place MT device in configuration mode."""
         self.write_ack(MID.GoToConfig)
+        self.state = DeviceState.Config
 
     def GoToMeasurement(self):
         """Place MT device in measurement mode."""
+        self._ensure_config_state()
         self.write_ack(MID.GoToMeasurement)
+        self.state = DeviceState.Measurement
 
     def GetDeviceID(self):
         """Get the device identifier."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.ReqDID)
         deviceID, = struct.unpack('!I', data)
         return deviceID
 
     def GetProductCode(self):
         """Get the product code."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.ReqProductCode)
         return data
 
     def GetFirmwareRev(self):
         """Get the firmware version."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.ReqFWRev)
         major, minor, revision = struct.unpack('!BBB', data)
         return (major, minor, revision)
 
     def RunSelfTest(self):
         """Run the built-in self test."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.RunSelfTest)
         bit_names = ['accX', 'accY', 'accZ', 'gyrX', 'gyrY', 'gyrZ',
-                    'magX', 'magY', 'magZ']
+                     'magX', 'magY', 'magZ']
         self_test_results = []
         for i, name in enumerate(bit_names):
             self_test_results.append((name, (data >> i) & 1))
@@ -216,18 +235,18 @@ class MTDevice(object):
 
     def GetBaudrate(self):
         """Get the current baudrate id of the device."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.SetBaudrate)
         return data[0]
 
     def SetBaudrate(self, brid):
         """Set the baudrate of the device using the baudrate id."""
-        self.GoToConfig()
+        self._ensure_config_state()
         self.write_ack(MID.SetBaudrate, (brid,))
 
     def GetErrorMode(self):
         """Get the current error mode of the device."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.SetErrorMode)
         error_mode, = struct.unpack('!H', data)
         return error_mode
@@ -245,115 +264,107 @@ class MTDevice(object):
             0x0003: in case of non-message handling error, an error message is
                 sent and the device will go into Config State.
         """
-        self.GoToConfig()
+        self._ensure_config_state()
         data = struct.pack('!H', error_mode)
         self.write_ack(MID.SetErrorMode, data)
 
     def GetOptionFlags(self):
         """Get the option flags (MTi-1 series)."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.SetOptionFlags)
         set_flags, clear_flags = struct.unpack('!II', data)
         return set_flags, clear_flags
 
     def SetOptionFlags(self, set_flags, clear_flags):
         """Set the option flags (MTi-1 series)."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = struct.pack('!II', set_flags, clear_flags)
         self.write_ack(MID.SetOptionFlags, data)
 
     def GetLocationID(self):
         """Get the location ID of the device."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.SetLocationID)
         location_id, = struct.unpack('!H', data)
         return location_id
 
     def SetLocationID(self, location_id):
         """Set the location ID of the device (arbitrary)."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = struct.pack('!H', location_id)
         self.write_ack(MID.SetLocationID, data)
 
     def RestoreFactoryDefaults(self):
         """Restore MT device configuration to factory defaults (soft version).
         """
-        self.GoToConfig()
+        self._ensure_config_state()
         self.write_ack(MID.RestoreFactoryDef)
 
     def GetTransmitDelay(self):
         """Get the transmission delay (only RS485)."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = self.write_ack(MID.SetTransmitDelay)
         transmit_delay, = struct.unpack('!H', data)
         return transmit_delay
 
     def SetTransmitDelay(self, transmit_delay):
         """Set the transmission delay (only RS485)."""
-        self.GoToConfig()
+        self._ensure_config_state()
         data = struct.pack('!H', transmit_delay)
         self.write_ack(MID.SetTransmitDelay, data)
 
     def GetOutputMode(self):
-        """Get current output mode.
-        Assume the device is in Config state.
-        """
+        """Get current output mode."""
+        self._ensure_config_state()
         data = self.write_ack(MID.SetOutputMode)
         self.mode, = struct.unpack('!H', data)
         return self.mode
 
     def SetOutputMode(self, mode):
-        """Select which information to output.
-        Assume the device is in Config state.
-        """
+        """Select which information to output."""
+        self._ensure_config_state()
         H, L = (mode & 0xFF00) >> 8, mode & 0x00FF
         self.write_ack(MID.SetOutputMode, (H, L))
         self.mode = mode
 
     def GetOutputSettings(self):
-        """Get current output mode.
-        Assume the device is in Config state.
-        """
+        """Get current output mode."""
+        self._ensure_config_state()
         data = self.write_ack(MID.SetOutputSettings)
         self.settings, = struct.unpack('!I', data)
         return self.settings
 
     def SetOutputSettings(self, settings):
-        """Select how to output the information.
-        Assume the device is in Config state.
-        """
+        """Select how to output the information."""
+        self._ensure_config_state()
         HH, HL = (settings & 0xFF000000) >> 24, (settings & 0x00FF0000) >> 16
         LH, LL = (settings & 0x0000FF00) >> 8, settings & 0x000000FF
         self.write_ack(MID.SetOutputSettings, (HH, HL, LH, LL))
         self.settings = settings
 
     def SetPeriod(self, period):
-        """Set the period of sampling.
-        Assume the device is in Config state.
-        """
+        """Set the period of sampling."""
+        self._ensure_config_state()
         H, L = (period & 0xFF00) >> 8, period & 0x00FF
         self.write_ack(MID.SetPeriod, (H, L))
 
     def SetOutputSkipFactor(self, skipfactor):
-        """Set the output skip factor.
-        Assume the device is in Config state.
-        """
+        """Set the output skip factor."""
+        self._ensure_config_state()
         H, L = (skipfactor & 0xFF00) >> 8, skipfactor & 0x00FF
         self.write_ack(MID.SetOutputSkipFactor, (H, L))
 
     def ReqDataLength(self):
-        """Get data length.
-        Assume the device is in Config state.
-        """
+        """Get data length."""
+        self._ensure_config_state()
         data = self.write_ack(MID.ReqDataLength)
         self.length, = struct.unpack('!H', data)
         self.header = '\xFA\xFF\x32'+chr(self.length)
         return self.length
 
     def ReqConfiguration(self):
-        """Ask for the current configuration of the MT device.
-        Assume the device is in Config state.
-        """
+        """Ask for the current configuration of the MT device."""
+        self._ensure_config_state()
         config = self.write_ack(MID.ReqConfiguration)
         try:
             masterID, period, skipfactor, _, _, _, date, time, num, deviceID,\
@@ -378,9 +389,8 @@ class MTDevice(object):
         return conf
 
     def ReqAvailableScenarios(self):
-        """Request the available XKF scenarios on the device.
-        Assume the device is in Config state.
-        """
+        """Request the available XKF scenarios on the device."""
+        self._ensure_config_state()
         scenarios_dat = self.write_ack(MID.ReqAvailableScenarios)
         scenarios = []
         try:
@@ -395,8 +405,8 @@ class MTDevice(object):
         return scenarios
 
     def ReqCurrentScenario(self):
-        """Request the ID of the currently used XKF scenario.
-        Assume the device is in Config state."""
+        """Request the ID of the currently used XKF scenario.i"""
+        self._ensure_config_state()
         data = self.write_ack(MID.SetCurrentScenario)
         # current XKF id
         self.scenario_id, = struct.unpack('!H', data)
@@ -414,9 +424,8 @@ class MTDevice(object):
         return self.scenario_id, self.scenario_label
 
     def SetCurrentScenario(self, scenario_id):
-        """Sets the XKF scenario to use.
-        Assume the device is in Config state.
-        """
+        """Sets the XKF scenario to use."""
+        self._ensure_config_state()
         self.write_ack(MID.SetCurrentScenario, (0x00, scenario_id & 0xFF))
 
     ############################################################
@@ -424,27 +433,23 @@ class MTDevice(object):
     ############################################################
     def configure(self, mode, settings, period=None, skipfactor=None):
         """Configure the mode and settings of the MT device."""
-        self.GoToConfig()
         self.SetOutputMode(mode)
         self.SetOutputSettings(settings)
         if period is not None:
             self.SetPeriod(period)
         if skipfactor is not None:
             self.SetOutputSkipFactor(skipfactor)
-
         self.GetOutputMode()
         self.GetOutputSettings()
         self.ReqDataLength()
-        self.GoToMeasurement()
 
     def auto_config(self):
         """Read configuration from device."""
-        self.GoToConfig()
         self.ReqConfiguration()
-        self.GoToMeasurement()
         return self.mode, self.settings, self.length
 
     def read_measurement(self, mode=None, settings=None):
+        self._ensure_measurement_state()
         # getting data
         # data = self.read_data_msg()
         mid, data = self.read_msg()
@@ -798,7 +803,6 @@ class MTDevice(object):
 
     def ChangeBaudrate(self, baudrate):
         """Change the baudrate, reset the device and reopen communication."""
-        self.GoToConfig()
         brid = Baudrates.get_BRID(baudrate)
         self.SetBaudrate(brid)
         self.Reset()

@@ -7,7 +7,7 @@ import time
 import glob
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
-    XDIGroup, getMIDName, DeviceState
+    XDIGroup, getMIDName, DeviceState, DeprecatedMID
 
 # Verbose flag for debugging
 verbose = False
@@ -464,12 +464,12 @@ class MTDevice(object):
         """Set the output skip factor."""
         self._ensure_config_state()
         H, L = (skipfactor & 0xFF00) >> 8, skipfactor & 0x00FF
-        self.write_ack(MID.SetOutputSkipFactor, (H, L))
+        self.write_ack(DeprecatedMID.SetOutputSkipFactor, (H, L))
 
     def ReqDataLength(self):
-        """Get data length."""
+        """Get data length for mark III devices."""
         self._ensure_config_state()
-        data = self.write_ack(MID.ReqDataLength)
+        data = self.write_ack(DeprecatedMID.ReqDataLength)
         self.length, = struct.unpack('!H', data)
         self.header = '\xFA\xFF\x32'+chr(self.length)
         return self.length
@@ -567,9 +567,9 @@ class MTDevice(object):
                 o['PacketCounter'], = struct.unpack('!H', content)
             elif (data_id & 0x00F0) == 0x30:  # Integer Time of Week
                 o['TimeOfWeek'], = struct.unpack('!L', content)
-            elif (data_id & 0x00F0) == 0x40:  # GPS Age
+            elif (data_id & 0x00F0) == 0x40:  # GPS Age  # deprecated
                 o['gpsAge'], = struct.unpack('!B', content)
-            elif (data_id & 0x00F0) == 0x50:  # Pressure Age
+            elif (data_id & 0x00F0) == 0x50:  # Pressure Age  # deprecated
                 o['pressureAge'], = struct.unpack('!B', content)
             elif (data_id & 0x00F0) == 0x60:  # Sample Time Fine
                 o['SampleTimeFine'], = struct.unpack('!L', content)
@@ -615,13 +615,16 @@ class MTDevice(object):
             elif (data_id & 0x00F0) == 0x30:  # Free Acceleration
                 o['freeAccX'], o['freeAccY'], o['freeAccZ'] = \
                     struct.unpack('!'+3*ffmt, content)
+            elif (data_id & 0x00F0) == 0x40:  # AccelerationHR
+                o['AccX'], o['AccY'], o['AccZ'] = \
+                    struct.unpack('!'+3*ffmt, content)
             else:
                 raise MTException("unknown packet: 0x%04X." % data_id)
             return o
 
         def parse_position(data_id, content, ffmt):
             o = {}
-            if (data_id & 0x00F0) == 0x10:  # Altitude MSL
+            if (data_id & 0x00F0) == 0x10:  # Altitude MSL  # deprecated
                 o['altMsl'], = struct.unpack('!'+ffmt, content)
             elif (data_id & 0x00F0) == 0x20:  # Altitude Ellipsoid
                 o['altEllipsoid'], = struct.unpack('!'+ffmt, content)
@@ -634,6 +637,43 @@ class MTDevice(object):
                 raise MTException("unknown packet: 0x%04X." % data_id)
             return o
 
+        def parse_GNSS(data_id, content, ffmt):
+            o = {}
+            if (data_id & 0x00F0) == 0x10:  # GNSS PVT data
+                o['itow'], o['year'], o['month'], o['day'], o['hour'],\
+                    o['min'], o['sec'], o['valid'], o['tAcc'], o['nano'],\
+                    o['fixtype'], o['flags'], o['numSV'], o['lon'], o['lat'],\
+                    o['height'], o['hMSL'], o['hAcc'], o['vAcc'], o['velN'],\
+                    o['velE'], o['velD'], o['gSpeed'], o['headMot'], o['sAcc'],\
+                    o['headAcc'], o['headVeh'], o['gdop'], o['pdop'],\
+                    o['tdop'], o['vdop'], o['hdop'], o['ndop'], o['edop'] = \
+                    struct.unpack('!IHBBBBBBIiBBBBiiiiIIiiiiiIIiHHHHHHH',
+                                  content)
+                # scaling correction
+                o['lon'] *= 1e-7
+                o['lat'] *= 1e-7
+                o['headMot'] *= 1e-5
+                o['headVeh'] *= 1e-5
+                o['gdop'] *= 0.01
+                o['pdop'] *= 0.01
+                o['tdop'] *= 0.01
+                o['vdop'] *= 0.01
+                o['hdop'] *= 0.01
+                o['bdop'] *= 0.01
+                o['edop'] *= 0.01
+            elif (data_id & 0x00F0) == 0x20:  # GNSS satellites info
+                o['iTOW'], o['numSvs'] = struct.unpack('!LBxxx', content[:8])
+                svs = []
+                ch = {}
+                for i in range(o['numSvs']):
+                    ch['gnssId'], ch['svId'], ch['cno'], ch['flags'] = \
+                        struct.unpack('!BBBB', content[8+4*i:12+4*i])
+                    svs.append(ch)
+                o['svs'] = svs
+            else:
+                raise MTException("unknown packet: 0x%04X." % data_id)
+            return o
+
         def parse_angular_velocity(data_id, content, ffmt):
             o = {}
             if (data_id & 0x00F0) == 0x20:  # Rate of Turn
@@ -642,6 +682,9 @@ class MTDevice(object):
             elif (data_id & 0x00F0) == 0x30:  # Delta Q
                 o['Delta q0'], o['Delta q1'], o['Delta q2'], o['Delta q3'] = \
                     struct.unpack('!'+4*ffmt, content)
+            elif (data_id & 0x00F0) == 0x40:  # RateOfTurnHR
+                o['gyrX'], o['gyrY'], o['gyrZ'] = \
+                    struct.unpack('!'+3*ffmt, content)
             else:
                 raise MTException("unknown packet: 0x%04X." % data_id)
             return o
@@ -660,12 +703,14 @@ class MTDevice(object):
                     o['ecefVX'], o['ecefVY'], o['ecefVZ'], o['sAcc'], \
                     o['pDOP'], o['numSV'] = \
                     struct.unpack('!LlhBBlllLlllLHxBx', content)
+                # scaling correction
+                o['pDOP'] *= 0.01
             elif (data_id & 0x00F0) == 0x80:  # Time UTC
                 o['iTOW'], o['tAcc'], o['nano'], o['year'], o['month'], \
                     o['day'], o['hour'], o['min'], o['sec'], o['valid'] = \
                     struct.unpack('!LLlHBBBBBB', content)
             elif (data_id & 0x00F0) == 0xA0:  # SV Info
-                o['iTOW'], o['numCh'] = struct.unpack('!LBxx', content[:8])
+                o['iTOW'], o['numCh'] = struct.unpack('!LBxxx', content[:8])
                 channels = []
                 ch = {}
                 for i in range(o['numCh']):
@@ -691,7 +736,7 @@ class MTDevice(object):
                 raise MTException("unknown packet: 0x%04X." % data_id)
             return o
 
-        def parse_analog_in(data_id, content, ffmt):
+        def parse_analog_in(data_id, content, ffmt):  # deprecated
             o = {}
             if (data_id & 0x00F0) == 0x10:  # Analog In 1
                 o['analogIn1'], = struct.unpack("!H", content)
@@ -725,7 +770,7 @@ class MTDevice(object):
                 o['StatusByte'], = struct.unpack("!B", content)
             elif (data_id & 0x00F0) == 0x20:  # Status Word
                 o['StatusWord'], = struct.unpack("!L", content)
-            elif (data_id & 0x00F0) == 0x40:  # RSSI
+            elif (data_id & 0x00F0) == 0x40:  # RSSI  # deprecated
                 o['RSSI'], = struct.unpack("!b", content)
             else:
                 raise MTException("unknown packet: 0x%04X." % data_id)
@@ -762,6 +807,8 @@ class MTDevice(object):
                         data_id, content, ffmt)
                 elif group == XDIGroup.Position:
                     output['Position'] = parse_position(data_id, content, ffmt)
+                elif group == XDIGroup.GNSS:
+                    output['GNSS'] = parse_GNSS(data_id, content, ffmt)
                 elif group == XDIGroup.AngularVelocity:
                     output['Angular Velocity'] = parse_angular_velocity(
                         data_id, content, ffmt)
@@ -769,7 +816,7 @@ class MTDevice(object):
                     output['GPS'] = parse_GPS(data_id, content, ffmt)
                 elif group == XDIGroup.SensorComponentReadout:
                     output['SCR'] = parse_SCR(data_id, content, ffmt)
-                elif group == XDIGroup.AnalogIn:
+                elif group == XDIGroup.AnalogIn:  # deprecated
                     output['Analog In'] = parse_analog_in(
                         data_id, content, ffmt)
                 elif group == XDIGroup.Magnetic:

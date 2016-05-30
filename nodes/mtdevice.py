@@ -460,13 +460,13 @@ class MTDevice(object):
         self.write_ack(MID.SetOutputSettings, data)
         self.settings = settings
 
-    def SetOutputSkipFactor(self, skipfactor):
+    def SetOutputSkipFactor(self, skipfactor):  # deprecated
         """Set the output skip factor."""
         self._ensure_config_state()
         H, L = (skipfactor & 0xFF00) >> 8, skipfactor & 0x00FF
         self.write_ack(DeprecatedMID.SetOutputSkipFactor, (H, L))
 
-    def ReqDataLength(self):
+    def ReqDataLength(self):  # deprecated
         """Get data length for mark III devices."""
         self._ensure_config_state()
         data = self.write_ack(DeprecatedMID.ReqDataLength)
@@ -474,15 +474,32 @@ class MTDevice(object):
         self.header = '\xFA\xFF\x32'+chr(self.length)
         return self.length
 
-    def ReqAvailableScenarios(self):
-        """Request the available XKF scenarios on the device."""
+    def GetLatLonAlt(self):
+        """Get the stored position of the device.
+        It is used internally for local magnetic declination and local gravity.
+        """
         self._ensure_config_state()
-        scenarios_dat = self.write_ack(MID.ReqAvailableScenarios)
+        data = self.write_ack(MID.SetLatLonAlt)
+        lat, lon, alt = struct.unpack('!ddd', data)
+        return (lat, lon, alt)
+
+    def SetLatLonAlt(self, lat, lon, alt):
+        """Set the position of the device.
+        It is used internally for local magnetic declination and local gravity.
+        """
+        self._ensure_config_state()
+        data = struct.pack('!ddd', lat, lon, alt)
+        self.write_ack(MID.SetLatLonAlt, data)
+
+    def GetAvailableScenarios(self):
+        """Get the available XKF scenarios on the device."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.ReqAvailableScenarios)
         scenarios = []
         try:
-            for i in range(len(scenarios_dat)/22):
+            for i in range(len(data)/22):
                 scenario_type, version, label =\
-                    struct.unpack('!BB20s', scenarios_dat[22*i:22*(i+1)])
+                    struct.unpack('!BB20s', data[22*i:22*(i+1)])
                 scenarios.append((scenario_type, version, label.strip()))
             # available XKF scenarios
             self.scenarios = scenarios
@@ -490,29 +507,56 @@ class MTDevice(object):
             raise MTException("could not parse the available XKF scenarios.")
         return scenarios
 
-    def ReqCurrentScenario(self):
-        """Request the ID of the currently used XKF scenario.i"""
+    def GetCurrentScenario(self):
+        """Get the ID of the currently used XKF scenario."""
         self._ensure_config_state()
         data = self.write_ack(MID.SetCurrentScenario)
-        # current XKF id
-        self.scenario_id, = struct.unpack('!H', data)
-        try:
-            scenarios = self.scenarios
-        except AttributeError:
-            scenarios = self.ReqAvailableScenarios()
-        for t, _, label in scenarios:
-            if t == self.scenario_id:
-                # current XKF label
-                self.scenario_label = label
-                break
-        else:
-            self.scenario_label = ""
-        return self.scenario_id, self.scenario_label
+        _, self.scenario_id = struct.unpack('!BB', data)  # version, id
+        return self.scenario_id
 
     def SetCurrentScenario(self, scenario_id):
         """Sets the XKF scenario to use."""
         self._ensure_config_state()
-        self.write_ack(MID.SetCurrentScenario, (0x00, scenario_id & 0xFF))
+        data = struct.pack('!BB', 0, scenario_id)  # version, id
+        self.write_ack(MID.SetCurrentScenario, data)
+
+    def ResetOrientation(self, code):
+        """Reset the orientation.
+
+        Code can take several values:
+            0x0000: store current settings (only in config mode),
+            0x0001: heading reset (NOT supported by MTi-G),
+            0x0003: object reset.
+        """
+        data = struct.pack('!H', code)
+        self.write_ack(MID.ResetOrientation, data)
+
+    def SetNoRotation(self, duration):
+        """Initiate the "no rotation" procedure to estimate gyro biases."""
+        self._ensure_measurement_state()
+        data = struct.pack('!H', duration)
+        self.write_ack(MID.SetNoRotation, data)
+
+    def GetUTCTime(self):
+        """Get UTC time from device."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetUTCTime)
+        ns, year, month, day, hour, minute, second, flag = \
+            struct.unpack('!IHBBBBBB', data)
+        return (ns, year, month, day, hour, minute, second, flag)
+
+    def SetUTCTime(self, ns, year, month, day, hour, minute, second, flag):
+        """Set UTC time on the device."""
+        self._ensure_config_state()
+        data = struct.pack('!IHBBBBBB', ns, year, month, day, hour, minute,
+                           second, flag)  # no clue what setting flag can mean
+        self.write_ack(MID.SetUTCTime, data)
+
+    def AdjustUTCTime(self, ticks):
+        """Adjust UTC Time of device using correction ticks (0.1 ms)."""
+        self._ensure_config_state()
+        data = struct.pack('!i', ticks)
+        self.write(MID.AdjustUTCTime, data)  # no ack mentioned in the doc
 
     ############################################################
     # High-level utility functions
@@ -1181,9 +1225,8 @@ def main():
             mt.GoToConfig()
             print "Device: %s at %d Bd:" % (device, baudrate)
             print "General configuration:", mt.GetConfiguration()
-            print "Available scenarios:", mt.ReqAvailableScenarios()
-            print "Current scenario: %s (id: %d)" %\
-                mt.ReqCurrentScenario()[::-1]
+            print "Available scenarios:", mt.GetAvailableScenarios()
+            print "Current scenario id:", mt.GetCurrentScenario()
             mt.GoToMeasurement()
         if 'change-baudrate' in actions:
             print "Changing baudrate from %d to %d:" % (baudrate, new_baudrate),

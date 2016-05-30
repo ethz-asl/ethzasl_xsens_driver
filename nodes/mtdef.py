@@ -98,7 +98,7 @@ class MID:
     # Newer data packet (MTi-10/100 series only)
     MTData2 = 0x36
 
-    # XKF Filter messages
+    # Filter messages
     # Reset orientation, 2 bytes
     ResetOrientation = 0xA4
     # Request or set UTC time from sensor (MTI-G and MTi-10/100 series)

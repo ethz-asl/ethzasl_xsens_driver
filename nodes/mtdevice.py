@@ -1040,17 +1040,19 @@ Commands:
         Reset device to factory defaults.
     -a, --change-baudrate=NEW_BAUD
         Change baudrate from BAUD (see below) to NEW_BAUD.
-    -c, --configure
-        Configure the device (needs MODE and SETTINGS arguments below).
+    -c, --configure=OUPUT
+        Configure the device (see OUTPUT description below).
     -e, --echo
         Print MTData. It is the default if no other command is supplied.
     -i, --inspect
         Print current MT device configuration.
     -x, --xkf-scenario=ID
         Change the current XKF scenario.
+    -l, --legacy-configure
+        Configure the device in legacy mode (needs MODE and SETTINGS arguments
+        below).
 
-
-Options:
+Generic options:
     -d, --device=DEV
         Serial interface of the device (default: /dev/ttyUSB0). If 'auto', then
         all serial ports are tested at all baudrates and the first
@@ -1058,11 +1060,85 @@ Options:
     -b, --baudrate=BAUD
         Baudrate of serial interface (default: 115200). If 0, then all
         rates are tried until a suitable one is found.
+
+Configuration option:
+    OUTPUT
+        The format is a sequence of "<group><type><frequency>?<format>?"
+        separated by commas.
+        The frequency and format are optional.
+        The groups and types can be:
+            t  temperature (max frequency: 1 Hz):
+                tt  temperature
+            i  timestamp (max frequency: 2000 Hz):
+                iu  UTC time
+                ip  packet counter
+                ii  Integer Time of the Week (ITOW)
+                if  sample time fine
+                ic  sample time coarse
+                ir  frame range
+            o  orientation data (max frequency: 400 Hz):
+                oq  quaternion
+                om  rotation matrix
+                oe  Euler angles
+            b  pressure (max frequency: 50 Hz):
+                bp  baro pressure
+            a  acceleration (max frequency: 2000 Hz (see documentation)):
+                ad  delta v
+                aa  acceleration
+                af  free acceleration
+                ah  acceleration HR (max frequency 1000 Hz)
+            p  position (max frequency: 400 Hz):
+                pa  altitude ellipsoid
+                pp  position ECEF
+                pl  latitude longitude
+            n  GNSS (max frequency: 4 Hz):
+                np  GNSS PVT data
+                ns  GNSS satellites info
+            w  angular velocity (max frequency: 2000 Hz (see documentation)):
+                wr  rate of turn
+                wd  delta q
+                wh  rate of turn HR (max frequency 1000 Hz)
+            g  GPS (max frequency: 4 Hz):
+                gd  DOP
+                gs  SOL
+                gu  time UTC
+                gi  SV info
+            r  Sensor Component Readout (max frequency: 2000 Hz):
+                rr  ACC, GYR, MAG, temperature
+                rt  Gyro temperatures
+            m  Magnetic (max frequency: 100 Hz):
+                mf  magnetic Field
+            v  Velocity (max frequency: 400 Hz):
+                vv  velocity XYZ
+            s  Status (max frequency: 2000 Hz):
+                sb  status byte
+                sw  status word
+        Frequency is specified in decimal and is assumed to be the maximum
+        frequency if it is omitted.
+        Format is a combination of the precision for real valued numbers and
+        coordinate system:
+            precision:
+                f  single precision floating point number (32-bit) (default)
+                d  double precision floating point number (64-bit)
+            coordinate system:
+                e  East-North-Up (default)
+                n  North-East-Down
+                w  North-West-Up
+        Examples:
+            The default configuration for the MTi-1/10/100 IMUs can be
+            specified either as:
+                "wd,ad,mf,ip,if,sw"
+            or
+                "wd2000fe,ad2000fe,mf100fe,ip2000,if2000,sw2000"
+            For getting quaternion orientation in float with sample time:
+                "oq400fw,if2000"
+            For longitude, latitude, altitude and orientation (on MTi-G-700):
+                "pl400fe,pa400fe,oq400fe"
+
+Legacy options:
     -m, --output-mode=MODE
-        Mode of the device selecting the information to output.
-        This is required for 'configure' command. If it is not present
-        in 'echo' command, the configuration will be read from the
-        device.
+        Legacy mode of the device to select the information to output.
+        This is required for 'legacy-configure' command.
         MODE can be either the mode value in hexadecimal, decimal or
         binary form, or a string composed of the following characters
         (in any order):
@@ -1079,10 +1155,8 @@ Options:
         For example, use "--output-mode=so" to have status and
         orientation data.
     -s, --output-settings=SETTINGS
-        Settings of the device.
-        This is required for 'configure' command. If it is not present
-        in 'echo' command, the configuration will be read from the
-        device.
+        Legacy settings of the device. This is required for 'legacy-configure'
+        command.
         SETTINGS can be either the settings value in hexadecimal,
         decimal or binary form, or a string composed of the following
         characters (in any order):
@@ -1104,9 +1178,12 @@ Options:
         Sampling period in (1/115200) seconds (default: 1152).
         Minimum is 225 (1.95 ms, 512 Hz), maximum is 1152
         (10.0 ms, 100 Hz).
-        Note that it is the period at which sampling occurs, not the
-        period at which messages are sent (see below).
-    -f, --skip-factor=SKIPFACTOR
+        Note that for legacy devices it is the period at which sampling occurs,
+        not the period at which messages are sent (see below).
+
+Deprecated options:
+    -f, --deprecated-skip-factor=SKIPFACTOR
+        Only for mark III devices.
         Number of samples to skip before sending MTData message
         (default: 0).
         The frequency at which MTData message is send is:

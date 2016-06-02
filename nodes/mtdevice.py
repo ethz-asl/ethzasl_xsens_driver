@@ -5,6 +5,7 @@ import sys
 import getopt
 import time
 import glob
+import re
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
     XDIGroup, getMIDName, DeviceState, DeprecatedMID
@@ -1267,6 +1268,67 @@ def main():
                 pass
     except MTException as e:
         print e
+
+
+def get_output_config(config_arg):
+    """Parse the mark IV output configuration argument."""
+    # code and max frequency
+    code_dict = {
+        'tt': (0x0810, 1),
+        'iu': (0x1010, 2000),
+        'ip': (0x1020, 2000),
+        'ii': (0x1030, 2000),
+        'if': (0x1060, 2000),
+        'ic': (0x1070, 2000),
+        'ir': (0x1080, 2000),
+        'oq': (0x2010, 400),
+        'om': (0x2020, 400),
+        'oe': (0x2030, 400),
+        'bp': (0x3010, 50),
+        'ad': (0x4010, 2000),
+        'aa': (0x4020, 2000),
+        'af': (0x4030, 2000),
+        'ah': (0x4040, 1000),
+        'pa': (0x5020, 400),
+        'pp': (0x5030, 400),
+        'pl': (0x5040, 400),
+        'np': (0x7010, 4),
+        'ns': (0x7020, 4),
+        'wr': (0x8020, 2000),
+        'wd': (0x8030, 2000),
+        'wh': (0x8040, 1000),
+        'gd': (0x8830, 4),
+        'gs': (0x8840, 4),
+        'gu': (0x8880, 4),
+        'gi': (0x88A0, 4),
+        'rr': (0xA010, 2000),
+        'rt': (0xA020, 2000),
+        'mf': (0xC020, 100),
+        'vv': (0xD010, 400),
+        'sb': (0xE010, 2000),
+        'sw': (0xE020, 2000)
+    }
+    # format flags
+    format_dict = {'f': 0x00, 'd': 0x03, 'e': 0x00, 'n': 0x04, 'w': 0x80}
+    config_re = re.compile('([a-z]{2})(\d+)?([fdenw])?([fdnew])?')
+    output_configuration = []
+    try:
+        for item in config_arg.split(','):
+            group, frequency, fmt1, fmt2 = config_re.findall(item.lower())[0]
+            code, max_freq = code_dict[group]
+            if fmt1 in format_dict:
+                code |= format_dict[fmt1]
+            if fmt2 in format_dict:
+                code |= format_dict[fmt2]
+            if frequency:
+                frequency = min(max_freq, frequency)
+            else:
+                frequency = max_freq
+            output_configuration.append(code, frequency)
+        return output_configuration
+    except (IndexError, KeyError):
+        print 'could not parse output specification "%s"' % item
+        return
 
 
 def get_mode(arg):

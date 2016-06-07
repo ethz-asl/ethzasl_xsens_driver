@@ -68,18 +68,26 @@ class MTDevice(object):
                 (mid, getMIDName(mid), length,
                  ' '.join("%02X" % v for v in data))
 
+    def waitfor(self, size=1):
+        """Get a given amount of data."""
+        buf = bytearray()
+        for _ in range(10):
+            buf.extend(self.device.read(size-len(buf)))
+            if len(buf) == size:
+                return buf
+        raise MTException("timeout waiting for message.")
+
     def read_data_msg(self, buf=bytearray()):
         """Low-level MTData receiving function.
         Take advantage of known message length.
         """
         start = time.time()
-        if self.length > 254:
-            totlength = 7 + self.length
-        else:
+        if self.length <= 254:
             totlength = 5 + self.length
+        else:
+            totlength = 7 + self.length
         while (time.time()-start) < self.timeout:
-            while len(buf) < totlength:
-                buf.extend(self.device.read(totlength-len(buf)))
+            buf.extend(self.waitfor(totlength - len(buf)))
             preamble_ind = buf.find(self.header)
             if preamble_ind == -1:  # not found
                 # discard unexploitable data
@@ -91,8 +99,7 @@ class MTDevice(object):
                 # sys.stderr.write("MT: discarding (before preamble).\n")
                 del buf[:preamble_ind]
                 # complete message for checksum
-                while len(buf) < totlength:
-                    buf.extend(self.device.read(totlength-len(buf)))
+                buf.extend(self.waitfor(totlength-len(buf)))
             if 0xFF & sum(buf[1:]):
                 # sys.stderr.write("MT: invalid checksum; discarding data and "
                 #                  "waiting for next message.\n")
@@ -108,32 +115,18 @@ class MTDevice(object):
         """Low-level message receiving function."""
         start = time.time()
         while (time.time()-start) < self.timeout:
-            # new_start = time.time()
-
-            # Makes sure the buffer has 'size' bytes.
-            def waitfor(size=1):
-                read_buf = self.device.read(size)
-                for _ in range(10):
-                    if len(read_buf) == size:
-                        return read_buf
-                    read_buf += self.device.read(size-len(read_buf))
-                raise MTException("timeout waiting for message.")
-
-            if ord(waitfor()) != 0xFA:
+            # first part of preamble
+            if ord(self.waitfor()) != 0xFA:
                 continue
             # second part of preamble
-            if ord(waitfor()) != 0xFF:  # we assume no timeout anymore
+            if ord(self.waitfor()) != 0xFF:  # we assume no timeout anymore
                 continue
             # read message id and length of message
-            # msg = self.device.read(2)
-            mid, length = struct.unpack('!BB', waitfor(2))
+            mid, length = struct.unpack('!BB', self.waitfor(2))
             if length == 255:    # extended length
-                length, = struct.unpack('!H', waitfor(2))
+                length, = struct.unpack('!H', self.waitfor(2))
             # read contents and checksum
-
-            buf = waitfor(length+1)
-            if (len(buf) < length+1):
-                continue
+            buf = self.waitfor(length+1)
             checksum = ord(buf[-1])
             data = struct.unpack('!%dB' % length, buf[:-1])
             if mid == MID.Error:
@@ -152,7 +145,7 @@ class MTDevice(object):
             raise MTException("could not find message.")
 
     def write_ack(self, mid, data=[]):
-        """Send a message a read confirmation."""
+        """Send a message and read confirmation."""
         self.write_msg(mid, data)
         for tries in range(100):
             mid_ack, data_ack = self.read_msg()
@@ -342,7 +335,10 @@ class MTDevice(object):
         self.mode = mode
         self.settings = settings
         self.length = length
-        self.header = '\xFA\xFF\x32'+chr(length)
+        if self.length <= 254:
+            self.header = b'\xFA\xFF\x32' + struct.pack('!B', self.length)
+        else:
+            self.header = b'\xFA\xFF\x32\xFF' + struct.pack('!H', self.length)
         conf = {'output-mode': mode,
                 'output-settings': settings,
                 'length': length,
@@ -464,15 +460,23 @@ class MTDevice(object):
     def SetOutputSkipFactor(self, skipfactor):  # deprecated
         """Set the output skip factor."""
         self._ensure_config_state()
-        H, L = (skipfactor & 0xFF00) >> 8, skipfactor & 0x00FF
-        self.write_ack(DeprecatedMID.SetOutputSkipFactor, (H, L))
+        data = struct.pack('!H', skipfactor)
+        self.write_ack(DeprecatedMID.SetOutputSkipFactor, data)
 
     def ReqDataLength(self):  # deprecated
         """Get data length for mark III devices."""
         self._ensure_config_state()
-        data = self.write_ack(DeprecatedMID.ReqDataLength)
+        try:
+            data = self.write_ack(DeprecatedMID.ReqDataLength)
+        except MTException:
+            sys.stderr.write("This message is deprecated and not recognised by "
+                             "your device.")
+            return
         self.length, = struct.unpack('!H', data)
-        self.header = '\xFA\xFF\x32'+chr(self.length)
+        if self.length <= 254:
+            self.header = b'\xFA\xFF\x32' + struct.pack('!B', self.length)
+        else:
+            self.header = b'\xFA\xFF\x32\xFF' + struct.pack('!H', self.length)
         return self.length
 
     def GetLatLonAlt(self):

@@ -49,16 +49,16 @@ class MTDevice(object):
     ############################################################
     # Low-level communication
     ############################################################
-    def write_msg(self, mid, data=[]):
+    def write_msg(self, mid, data=b''):
         """Low-level message sending function."""
         length = len(data)
         if length > 254:
-            lendat = [0xFF, 0xFF & length, 0xFF & (length >> 8)]
+            lendat = b'\xFF' + struct.pack('!H', length)
         else:
-            lendat = [length]
-        packet = [0xFA, 0xFF, mid] + lendat + list(data)
-        packet.append(0xFF & (-(sum(packet[1:]))))
-        msg = struct.pack('%dB' % len(packet), *packet)
+            lendat = struct.pack('!B', length)
+        packet = b'\xFA\xFF' + struct.pack('!B', mid) + lendat + data
+        packet += struct.pack('!B', 0xFF & (-(sum(map(ord, packet[1:])))))
+        msg = packet
         start = time.time()
         while ((time.time()-start) < self.timeout) and self.device.read():
             pass
@@ -66,7 +66,7 @@ class MTDevice(object):
         if verbose:
             print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" %\
                 (mid, getMIDName(mid), length,
-                 ' '.join("%02X" % v for v in data))
+                 ' '.join("%02X" % ord(v) for v in data))
 
     def waitfor(self, size=1):
         """Get a given amount of data."""
@@ -127,7 +127,7 @@ class MTDevice(object):
                 length, = struct.unpack('!H', self.waitfor(2))
             # read contents and checksum
             buf = self.waitfor(length+1)
-            checksum = ord(buf[-1])
+            checksum = buf[-1]
             data = struct.unpack('!%dB' % length, buf[:-1])
             if mid == MID.Error:
                 sys.stderr.write("MT error 0x%02X: %s." % (data[0],
@@ -144,7 +144,7 @@ class MTDevice(object):
         else:
             raise MTException("could not find message.")
 
-    def write_ack(self, mid, data=[]):
+    def write_ack(self, mid, data=b''):
         """Send a message and read confirmation."""
         self.write_msg(mid, data)
         for tries in range(100):

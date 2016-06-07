@@ -82,7 +82,7 @@ class MID:
     # Output configuration (MTi-1/10/100 series only), N*4 bytes
     SetOutputConfiguration = 0xC0
     # Configure NMEA data output (MTi-10/100), 2 bytes
-    SetStringOutputTypes = 0x8E
+    SetStringOutputType = 0x8E
     # Set sensor of local alignment quaternion
     SetAlignmentRotation = 0xEC
     # Output mode (MTi/MTi-G only), 2 bytes

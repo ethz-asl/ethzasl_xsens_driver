@@ -33,7 +33,7 @@ class MTDevice(object):
         # state of the device
         self.state = None
         if autoconf:
-            self.auto_config()
+            self.auto_config_legacy()
         else:
             # mode parameter of the IMU
             self.mode = None
@@ -566,20 +566,24 @@ class MTDevice(object):
     ############################################################
     # High-level utility functions
     ############################################################
-    def configure(self, mode, settings, period=None, skipfactor=None):
-        """Configure the mode and settings of the MT device."""
+    def configure_legacy(self, mode, settings, period=None, skipfactor=None):
+        """Configure the mode and settings of the MT device in legacy mode."""
+        try:
+            # switch mark IV devices to legacy mode
+            self.SetOutputConfiguration([(0x0000, 0)])
+        except MTException:
+            # mark III device
+            pass  # we should check that the error in unknown message
         self.SetOutputMode(mode)
         self.SetOutputSettings(settings)
         if period is not None:
             self.SetPeriod(period)
         if skipfactor is not None:
             self.SetOutputSkipFactor(skipfactor)
-        self.GetOutputMode()
-        self.GetOutputSettings()
-        self.ReqDataLength()
+        self.GetConfiguration()
 
-    def auto_config(self):
-        """Read configuration from device."""
+    def auto_config_legacy(self):
+        """Read configuration from device in legacy mode."""
         self.GetConfiguration()
         return self.mode, self.settings, self.length
 
@@ -1202,10 +1206,11 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:ceid:b:m:s:p:f:x:'
-    lopts = ['help', 'reset', 'change-baudrate=', 'configure', 'echo',
-             'inspect', 'device=', 'baudrate=', 'output-mode=',
-             'output-settings=', 'period=', 'skip-factor=', 'xkf-scenario=']
+    shopts = 'hra:c:eild:b:m:s:p:f:x:'
+    lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
+             'inspect', 'legacy-configure', 'device=', 'baudrate=',
+             'output-mode=', 'output-settings=', 'period=',
+             'deprecated-skip-factor=', 'xkf-scenario=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1227,51 +1232,56 @@ def main():
         if o in ('-h', '--help'):
             usage()
             return
-        if o in ('-r', '--reset'):
+        elif o in ('-r', '--reset'):
             actions.append('reset')
-        if o in ('-a', '--change-baudrate'):
+        elif o in ('-a', '--change-baudrate'):
             try:
                 new_baudrate = int(a)
             except ValueError:
                 print "change-baudrate argument must be integer."
                 return 1
             actions.append('change-baudrate')
-        if o in ('-c', '--configure'):
+        elif o in ('-c', '--configure'):
+            output_config = get_output_config(a)
+            if output_config is None:
+                return 1
             actions.append('configure')
-        if o in ('-e', '--echo'):
+        elif o in ('-e', '--echo'):
             actions.append('echo')
-        if o in ('-i', '--inspect'):
+        elif o in ('-i', '--inspect'):
             actions.append('inspect')
-        if o in ('-x', '--xkf-scenario'):
+        elif o in ('-l', '--legacy-configure'):
+            actions.append('legacy-configure')
+        elif o in ('-x', '--xkf-scenario'):
             try:
                 new_xkf = int(a)
             except ValueError:
                 print "xkf-scenario argument must be integer."
                 return 1
             actions.append('xkf-scenario')
-        if o in ('-d', '--device'):
+        elif o in ('-d', '--device'):
             device = a
-        if o in ('-b', '--baudrate'):
+        elif o in ('-b', '--baudrate'):
             try:
                 baudrate = int(a)
             except ValueError:
                 print "baudrate argument must be integer."
                 return 1
-        if o in ('-m', '--output-mode'):
+        elif o in ('-m', '--output-mode'):
             mode = get_mode(a)
             if mode is None:
                 return 1
-        if o in ('-s', '--output-settings'):
+        elif o in ('-s', '--output-settings'):
             settings = get_settings(a)
             if settings is None:
                 return 1
-        if o in ('-p', '--period'):
+        elif o in ('-p', '--period'):
             try:
                 period = int(a)
             except ValueError:
                 print "period argument must be integer."
                 return 1
-        if o in ('-f', '--skip-factor'):
+        elif o in ('-f', '--skip-factor'):
             try:
                 skipfactor = int(a)
             except ValueError:
@@ -1314,29 +1324,34 @@ def main():
             print "Changing baudrate from %d to %d:" % (baudrate, new_baudrate),
             sys.stdout.flush()
             mt.ChangeBaudrate(new_baudrate)
-            print " Ok"  # should we test it was actually ok?
+            print " Ok"  # should we test that it was actually ok?
         if 'reset' in actions:
             print "Restoring factory defaults",
             sys.stdout.flush()
             mt.RestoreFactoryDefaults()
-            print " Ok"  # should we test it was actually ok?
+            print " Ok"  # should we test that it was actually ok?
         if 'configure' in actions:
+            print "Changing output configuration",
+            sys.stdout.flush()
+            mt.SetOutputConfiguration(output_config)
+            print " Ok"  # should we test that it was actually ok?
+        if 'legacy-configure' in actions:
             if mode is None:
-                print "output-mode is require to configure the device."
+                print "output-mode is require to configure the device in "\
+                    "legacy mode."
                 return 1
             if settings is None:
-                print "output-settings is required to configure the device."
+                print "output-settings is required to configure the device in "\
+                    "legacy mode."
                 return 1
-            print "Configuring mode and settings",
+            print "Configuring in legacy mode",
             sys.stdout.flush()
-            mt.configure(mode, settings, period, skipfactor)
+            mt.configure_legacy(mode, settings, period, skipfactor)
             print " Ok"        # should we test it was actually ok?
         if 'xkf-scenario' in actions:
             print "Changing XKF scenario",
             sys.stdout.flush()
-            mt.GoToConfig()
             mt.SetCurrentScenario(new_xkf)
-            mt.GoToMeasurement()
             print "Ok"
         if 'echo' in actions:
             # if (mode is None) or (settings is None):

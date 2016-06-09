@@ -10,9 +10,6 @@ import re
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
     XDIGroup, getMIDName, DeviceState, DeprecatedMID
 
-# Verbose flag for debugging
-verbose = False
-
 
 ################################################################
 # MTDevice class
@@ -21,8 +18,9 @@ class MTDevice(object):
     """XSens MT device communication object."""
 
     def __init__(self, port, baudrate=115200, timeout=0.002, autoconf=True,
-                 config_mode=False):
+                 config_mode=False, verbose=False):
         """Open device."""
+        self.verbose = verbose
         # serial interface to the device
         self.device = serial.Serial(port, baudrate, timeout=timeout,
                                     writeTimeout=timeout)
@@ -63,7 +61,7 @@ class MTDevice(object):
         while ((time.time()-start) < self.timeout) and self.device.read():
             pass
         self.device.write(msg)
-        if verbose:
+        if self.verbose:
             print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" %\
                 (mid, getMIDName(mid), length,
                  ' '.join("%02X" % ord(v) for v in data))
@@ -132,7 +130,7 @@ class MTDevice(object):
             if mid == MID.Error:
                 sys.stderr.write("MT error 0x%02X: %s." % (data[0],
                                  MID.ErrorCodes[data[0]]))
-            if verbose:
+            if self.verbose:
                 print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"\
                     % (mid, getMIDName(mid), length,
                        ' '.join("%02X" % v for v in data))
@@ -1005,11 +1003,13 @@ class MTDevice(object):
 ################################################################
 # Auto detect port
 ################################################################
-def find_devices():
+def find_devices(verbose=False):
     mtdev_list = []
     for port in glob.glob("/dev/tty*S*"):
+        if verbose:
+            print "Trying '%s'" % port
         try:
-            br = find_baudrate(port)
+            br = find_baudrate(port, verbose)
             if br:
                 mtdev_list.append((port, br))
         except MTException:
@@ -1020,19 +1020,25 @@ def find_devices():
 ################################################################
 # Auto detect baudrate
 ################################################################
-def find_baudrate(port):
+def find_baudrate(port, verbose=False):
     baudrates = (115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
     for br in baudrates:
+        if verbose:
+            print "Trying %d bd:" % br,
+            sys.stdout.flush()
         try:
-            mt = MTDevice(port, br)
+            mt = MTDevice(port, br, verbose)
         except serial.SerialException:
             raise MTException("unable to open %s" % port)
         try:
             mt.GoToConfig()
             mt.GoToMeasurement()
+            if verbose:
+                print "ok."
             return br
         except MTException:
-            pass
+            if verbose:
+                print "fail."
 
 
 ################################################################
@@ -1061,6 +1067,8 @@ Commands:
     -l, --legacy-configure
         Configure the device in legacy mode (needs MODE and SETTINGS arguments
         below).
+    -v, --verbose
+        Verbose output.
 
 Generic options:
     -d, --device=DEV
@@ -1208,11 +1216,11 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:c:eild:b:m:s:p:f:x:'
+    shopts = 'hra:c:eild:b:m:s:p:f:x:v'
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
-             'deprecated-skip-factor=', 'xkf-scenario=']
+             'deprecated-skip-factor=', 'xkf-scenario=', 'verbose']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1229,6 +1237,7 @@ def main():
     new_baudrate = None
     new_xkf = None
     actions = []
+    verbose = False
     # filling in arguments
     for o, a in opts:
         if o in ('-h', '--help'):
@@ -1289,12 +1298,14 @@ def main():
             except ValueError:
                 print "skip-factor argument must be integer."
                 return 1
+        elif o in ('-v', '--verbose'):
+            verbose = True
     # if nothing else: echo
     if len(actions) == 0:
         actions.append('echo')
     try:
         if device == 'auto':
-            devs = find_devices()
+            devs = find_devices(verbose)
             if devs:
                 print "Detected devices:", "".join('\n\t%s @ %d' % (d, p)
                                                    for d, p in devs)
@@ -1305,13 +1316,13 @@ def main():
                 return 1
         # find baudrate
         if not baudrate:
-            baudrate = find_baudrate(device)
+            baudrate = find_baudrate(device, verbose)
         if not baudrate:
             print "No suitable baudrate found."
             return 1
         # open device
         try:
-            mt = MTDevice(device, baudrate)
+            mt = MTDevice(device, baudrate, verbose)
         except serial.SerialException:
             raise MTException("unable to open %s" % device)
         # execute actions

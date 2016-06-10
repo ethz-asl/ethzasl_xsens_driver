@@ -141,16 +141,17 @@ class MTDevice(object):
         else:
             raise MTException("could not find message.")
 
-    def write_ack(self, mid, data=b''):
+    def write_ack(self, mid, data=b'', n_retries=100):
         """Send a message and read confirmation."""
         self.write_msg(mid, data)
-        for tries in range(100):
+        for _ in range(n_retries):
             mid_ack, data_ack = self.read_msg()
             if mid_ack == (mid+1):
                 break
         else:
-            raise MTException("Ack (0x%X) expected, MID 0x%X received instead"
-                              " (after 100 tries)." % (mid+1, mid_ack))
+            raise MTException("Ack (0x%02X) expected, MID 0x%02X received "
+                              "instead (after %d retries)." % (mid+1, mid_ack,
+                                                               n_retries))
         return data_ack
 
     def _ensure_config_state(self):

@@ -89,18 +89,21 @@ class MTDevice(object):
             preamble_ind = buf.find(self.header)
             if preamble_ind == -1:  # not found
                 # discard unexploitable data
-                # sys.stderr.write("MT: discarding (no preamble).\n")
+                if self.verbose:
+                    sys.stderr.write("MT: discarding (no preamble).\n")
                 del buf[:-3]
                 continue
             elif preamble_ind:  # found but not at start
                 # discard leading bytes
-                # sys.stderr.write("MT: discarding (before preamble).\n")
+                if self.verbose:
+                    sys.stderr.write("MT: discarding (before preamble).\n")
                 del buf[:preamble_ind]
                 # complete message for checksum
                 buf.extend(self.waitfor(totlength-len(buf)))
             if 0xFF & sum(buf[1:]):
-                # sys.stderr.write("MT: invalid checksum; discarding data and "
-                #                  "waiting for next message.\n")
+                if self.verbose:
+                    sys.stderr.write("MT: invalid checksum; discarding data and"
+                                     " waiting for next message.\n")
                 del buf[:buf.find(self.header)-2]
                 continue
             data = str(buf[-self.length-1:-1])

@@ -1034,8 +1034,10 @@ def find_baudrate(port, verbose=False):
             print "Trying %d bd:" % br,
             sys.stdout.flush()
         try:
-            mt = MTDevice(port, br, verbose)
+            mt = MTDevice(port, br, verbose=verbose)
         except serial.SerialException:
+            if verbose:
+                print "fail: unable to open device."
             raise MTException("unable to open %s" % port)
         try:
             mt.GoToConfig()
@@ -1329,7 +1331,7 @@ def main():
             return 1
         # open device
         try:
-            mt = MTDevice(device, baudrate, verbose)
+            mt = MTDevice(device, baudrate, verbose=verbose)
         except serial.SerialException:
             raise MTException("unable to open %s" % device)
         # execute actions

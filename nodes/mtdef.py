@@ -13,14 +13,6 @@ class MID:
     """Values for the message id (MID)"""
     # Error message, 1 data byte
     Error = 0x42
-    ErrorCodes = {
-        0x03: "Invalid period",
-        0x04: "Invalid message",
-        0x1E: "Timer overflow",
-        0x20: "Invalid baudrate",
-        0x21: "Invalid parameter",
-        0x28: "Device error, try updating the firmware"
-    }
 
     # State MID
     # Wake up procedure
@@ -281,4 +273,22 @@ class MTException(Exception):
         self.message = message
 
     def __str__(self):
-        return "MT error: " + self.message
+        return self.message
+
+
+class MTErrorMessage(MTException):
+    ErrorCodes = {
+        0x03: 'Invalid period',
+        0x04: 'Invalid message',
+        0x1E: 'Timer overflow',
+        0x20: 'Invalid baudrate',
+        0x21: 'Invalid parameter',
+        0x28: 'Device error, try updating the firmware'
+    }
+
+    def __init__(self, code):
+        self.code = code
+        self.message = self.ErrorCodes.get(code, 'Unknown error: 0x%X' % code)
+
+    def __str__(self):
+        return 'Error message 0x%X: %s' % (self.code, self.message)

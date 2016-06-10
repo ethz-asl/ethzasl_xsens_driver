@@ -8,7 +8,7 @@ import glob
 import re
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
-    XDIGroup, getMIDName, DeviceState, DeprecatedMID
+    XDIGroup, getMIDName, DeviceState, DeprecatedMID, MTErrorMessage
 
 
 ################################################################
@@ -127,13 +127,12 @@ class MTDevice(object):
             buf = self.waitfor(length+1)
             checksum = buf[-1]
             data = struct.unpack('!%dB' % length, buf[:-1])
-            if mid == MID.Error:
-                sys.stderr.write("MT error 0x%02X: %s." % (data[0],
-                                 MID.ErrorCodes[data[0]]))
             if self.verbose:
                 print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"\
                     % (mid, getMIDName(mid), length,
                        ' '.join("%02X" % v for v in data))
+            if mid == MID.Error:
+                raise MTErrorMessage(data[0])
             if 0xFF & sum(data, 0xFF+mid+length+checksum):
                 sys.stderr.write("invalid checksum; discarding data and "
                                  "waiting for next message.\n")
@@ -468,10 +467,12 @@ class MTDevice(object):
         self._ensure_config_state()
         try:
             data = self.write_ack(DeprecatedMID.ReqDataLength)
-        except MTException:
-            sys.stderr.write("This message is deprecated and not recognised by "
-                             "your device.")
-            return
+        except MTErrorMessage as e:
+            if e.code == 0x04:
+                sys.stderr.write("ReqDataLength message is deprecated and not "
+                                 "recognised by your device.")
+                return
+            raise e
         self.length, = struct.unpack('!H', data)
         if self.length <= 254:
             self.header = b'\xFA\xFF\x32' + struct.pack('!B', self.length)

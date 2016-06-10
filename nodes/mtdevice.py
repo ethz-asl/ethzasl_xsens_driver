@@ -866,39 +866,47 @@ class MTDevice(object):
                 group = data_id & 0xF800
                 ffmt = float_format
                 if group == XDIGroup.Temperature:
-                    output['Temperature'] = parse_temperature(
-                        data_id, content, ffmt)
+                    output.setdefault('Temperature', {}).update(
+                        parse_temperature(data_id, content, ffmt))
                 elif group == XDIGroup.Timestamp:
-                    output['Timestamp'] = parse_timestamp(
-                        data_id, content, ffmt)
+                    output.setdefault('Timestamp', {}).update(
+                        parse_timestamp(data_id, content, ffmt))
                 elif group == XDIGroup.OrientationData:
-                    output['Orientation Data'] = parse_orientation_data(
-                        data_id, content, ffmt)
+                    output.setdefault('Orientation Data', {}).update(
+                        parse_orientation_data(data_id, content, ffmt))
                 elif group == XDIGroup.Pressure:
-                    output['Pressure'] = parse_pressure(data_id, content, ffmt)
+                    output.setdefault('Pressure', {}).update(
+                        parse_pressure(data_id, content, ffmt))
                 elif group == XDIGroup.Acceleration:
-                    output['Acceleration'] = parse_acceleration(
-                        data_id, content, ffmt)
+                    output.setdefault('Acceleration', {}).update(
+                        parse_acceleration(data_id, content, ffmt))
                 elif group == XDIGroup.Position:
-                    output['Position'] = parse_position(data_id, content, ffmt)
+                    output.setdefault('Position', {}).update(
+                        parse_position(data_id, content, ffmt))
                 elif group == XDIGroup.GNSS:
-                    output['GNSS'] = parse_GNSS(data_id, content, ffmt)
+                    output.setdefault('GNSS', {}).update(
+                        parse_GNSS(data_id, content, ffmt))
                 elif group == XDIGroup.AngularVelocity:
-                    output['Angular Velocity'] = parse_angular_velocity(
-                        data_id, content, ffmt)
+                    output.setdefault('Angular Velocity', {}).update(
+                        parse_angular_velocity(data_id, content, ffmt))
                 elif group == XDIGroup.GPS:
-                    output['GPS'] = parse_GPS(data_id, content, ffmt)
+                    output.setdefault('GPS', {}).update(
+                        parse_GPS(data_id, content, ffmt))
                 elif group == XDIGroup.SensorComponentReadout:
-                    output['SCR'] = parse_SCR(data_id, content, ffmt)
+                    output.setdefault('SCR', {}).update(
+                        parse_SCR(data_id, content, ffmt))
                 elif group == XDIGroup.AnalogIn:  # deprecated
-                    output['Analog In'] = parse_analog_in(
-                        data_id, content, ffmt)
+                    output.setdefault('Analog In', {}).update(
+                        parse_analog_in(data_id, content, ffmt))
                 elif group == XDIGroup.Magnetic:
-                    output['Magnetic'] = parse_magnetic(data_id, content, ffmt)
+                    output.setdefault('Magnetic', {}).update(
+                        parse_magnetic(data_id, content, ffmt))
                 elif group == XDIGroup.Velocity:
-                    output['Velocity'] = parse_velocity(data_id, content, ffmt)
+                    output.setdefault('Velocity', {}).update(
+                        parse_velocity(data_id, content, ffmt))
                 elif group == XDIGroup.Status:
-                    output['Status'] = parse_status(data_id, content, ffmt)
+                    output.setdefault('Status', {}).update(
+                        parse_status(data_id, content, ffmt))
                 else:
                     raise MTException("unknown XDI group: 0x%04X." % group)
             except struct.error:

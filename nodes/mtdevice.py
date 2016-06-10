@@ -579,9 +579,16 @@ class MTDevice(object):
         try:
             # switch mark IV devices to legacy mode
             self.SetOutputConfiguration([(0x0000, 0)])
-        except MTException:
-            # mark III device
-            pass  # we should check that the error in unknown message
+        except MTErrorMessage as e:
+            if e.code == 0x04:
+                # mark III device
+                pass
+            else:
+                raise
+        except MTException as e:
+            if self.verbose:
+                print "no ack received while switching from MTData2 to MTData."
+            pass  # no ack???
         self.SetOutputMode(mode)
         self.SetOutputSettings(settings)
         if period is not None:
@@ -1470,10 +1477,10 @@ def get_output_config(config_arg):
             if fmt2 in format_dict:
                 code |= format_dict[fmt2]
             if frequency:
-                frequency = min(max_freq, frequency)
+                frequency = min(max_freq, int(frequency))
             else:
                 frequency = max_freq
-            output_configuration.append(code, frequency)
+            output_configuration.append((code, frequency))
         return output_configuration
     except (IndexError, KeyError):
         print 'could not parse output specification "%s"' % item

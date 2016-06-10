@@ -70,10 +70,13 @@ class MTDevice(object):
     def waitfor(self, size=1):
         """Get a given amount of data."""
         buf = bytearray()
-        for _ in range(10):
+        for _ in range(100):
             buf.extend(self.device.read(size-len(buf)))
             if len(buf) == size:
                 return buf
+            if self.verbose:
+                print "waiting for %d bytes, got %d so far: [%s]" % \
+                    (size, len(buf), ' '.join('%02X' % v for v in buf))
         raise MTException("timeout waiting for message.")
 
     def read_data_msg(self, buf=bytearray()):
@@ -147,13 +150,16 @@ class MTDevice(object):
         else:
             raise MTException("could not find message.")
 
-    def write_ack(self, mid, data=b'', n_retries=100):
+    def write_ack(self, mid, data=b'', n_retries=500):
         """Send a message and read confirmation."""
         self.write_msg(mid, data)
         for _ in range(n_retries):
             mid_ack, data_ack = self.read_msg()
             if mid_ack == (mid+1):
                 break
+            elif self.verbose:
+                print "ack (0x%02X) expected, got 0x%02X instead" % \
+                    (mid+1, mid_ack)
         else:
             raise MTException("Ack (0x%02X) expected, MID 0x%02X received "
                               "instead (after %d retries)." % (mid+1, mid_ack,
@@ -1385,8 +1391,10 @@ def main():
                     print mt.read_measurement(mode, settings)
             except KeyboardInterrupt:
                 pass
+    except MTErrorMessage as e:
+        print "MTErrorMessage:", e
     except MTException as e:
-        print e
+        print "MTException:", e
 
 
 def inspect(mt, device, baudrate):

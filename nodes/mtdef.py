@@ -288,7 +288,7 @@ class MTErrorMessage(MTException):
 
     def __init__(self, code):
         self.code = code
-        self.message = self.ErrorCodes.get(code, 'Unknown error: 0x%X' % code)
+        self.message = self.ErrorCodes.get(code, 'Unknown error: 0x%02X' % code)
 
     def __str__(self):
-        return 'Error message 0x%X: %s' % (self.code, self.message)
+        return 'Error message 0x%02X: %s' % (self.code, self.message)

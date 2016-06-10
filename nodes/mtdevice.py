@@ -6,6 +6,7 @@ import getopt
 import time
 import glob
 import re
+import pprint
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
     XDIGroup, getMIDName, DeviceState, DeprecatedMID, MTErrorMessage
@@ -210,7 +211,7 @@ class MTDevice(object):
         """Get the product code."""
         self._ensure_config_state()
         data = self.write_ack(MID.ReqProductCode)
-        return data
+        return str(data).strip()
 
     def GetFirmwareRev(self):
         """Get the firmware version."""
@@ -1336,28 +1337,7 @@ def main():
             raise MTException("unable to open %s" % device)
         # execute actions
         if 'inspect' in actions:
-            print "Device: %s at %d Bd:" % (device, baudrate)
-            print "General configuration:", mt.GetConfiguration()
-            print "Available scenarios:", mt.GetAvailableScenarios()
-            print "Current scenario id:", mt.GetCurrentScenario()
-            print "OutputConfiguration:", mt.GetOutputConfiguration()
-            print "DeviceID:", mt.GetDeviceID()
-            print "ProductCode:", mt.GetProductCode()
-            print "FirmwareRev:", mt.GetFirmwareRev()
-            # print "ErrorMode:", mt.GetErrorMode()
-            # print "OptionFlags:", mt.GetOptionFlags()
-            print "LocationID:", mt.GetLocationID()
-            # print "TransmitDelay:", mt.GetTransmitDelay()
-            print "SyncSettings:", mt.GetSyncSettings()
-            # print "StringOutputType:", mt.GetStringOutputType()
-            print "Period:", mt.GetPeriod()
-            # print "AlignmentRotation sensor:", mt.GetAlignmentRotation(0)
-            # print "AlignmentRotation local:", mt.GetAlignmentRotation(1)
-            print "OutputMode:", mt.GetOutputMode()
-            print "ExtOutputMode:", mt.GetExtOutputMode()
-            print "OutputSettings:", mt.GetOutputSettings()
-            print "LatLonAlt:", mt.GetLatLonAlt()
-            print "UTCTime:", mt.GetUTCTime()
+            inspect(mt, device, baudrate)
         if 'change-baudrate' in actions:
             print "Changing baudrate from %d to %d:" % (baudrate, new_baudrate),
             sys.stdout.flush()
@@ -1402,6 +1382,42 @@ def main():
                 pass
     except MTException as e:
         print e
+
+
+def inspect(mt, device, baudrate):
+    """Inspection."""
+    def try_message(m, f, *args, **kwargs):
+        print '  %s ' % m,
+        try:
+            pprint.pprint(f(*args, **kwargs), indent=4)
+        except MTErrorMessage as e:
+            if e.code == 0x04:
+                print 'message unsupported by your device.'
+            else:
+                raise e
+    print "Device: %s at %d Bd:" % (device, baudrate)
+    try_message("General configuration:", mt.GetConfiguration)
+    try_message("Output configuration (mark IV devices):",
+                mt.GetOutputConfiguration)
+    try_message("Available scenarios:", mt.GetAvailableScenarios)
+    try_message("Current scenario id:", mt.GetCurrentScenario)
+    try_message("DeviceID:", mt.GetDeviceID)
+    try_message("Product code:", mt.GetProductCode)
+    try_message("Firmware revision:", mt.GetFirmwareRev)
+    try_message("Error mode:", mt.GetErrorMode)
+    try_message("OptionFlags:", mt.GetOptionFlags)
+    try_message("LocationID:", mt.GetLocationID)
+    try_message("TransmitDelay:", mt.GetTransmitDelay)
+    try_message("SyncSettings:", mt.GetSyncSettings)
+    try_message("StringOutputType:", mt.GetStringOutputType)
+    try_message("Period:", mt.GetPeriod)
+    try_message("AlignmentRotation sensor:", mt.GetAlignmentRotation, 0)
+    try_message("AlignmentRotation local:", mt.GetAlignmentRotation, 1)
+    try_message("OutputMode:", mt.GetOutputMode)
+    try_message("ExtOutputMode:", mt.GetExtOutputMode)
+    try_message("OutputSettings:", mt.GetOutputSettings)
+    try_message("LatLonAlt:", mt.GetLatLonAlt)
+    try_message("UTCTime:", mt.GetUTCTime)
 
 
 def get_output_config(config_arg):

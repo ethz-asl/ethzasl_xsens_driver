@@ -127,16 +127,18 @@ class MTDevice(object):
             buf = self.waitfor(length+1)
             checksum = buf[-1]
             data = struct.unpack('!%dB' % length, buf[:-1])
+            # check message integrity
+            if 0xFF & sum(data, 0xFF+mid+length+checksum):
+                if self.verbose:
+                    sys.stderr.write("invalid checksum; discarding data and "
+                                     "waiting for next message.\n")
+                continue
             if self.verbose:
                 print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"\
                     % (mid, getMIDName(mid), length,
                        ' '.join("%02X" % v for v in data))
             if mid == MID.Error:
                 raise MTErrorMessage(data[0])
-            if 0xFF & sum(data, 0xFF+mid+length+checksum):
-                sys.stderr.write("invalid checksum; discarding data and "
-                                 "waiting for next message.\n")
-                continue
             return (mid, buf[:-1])
         else:
             raise MTException("could not find message.")

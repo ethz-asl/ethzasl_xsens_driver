@@ -61,8 +61,6 @@ class XSensDriver(object):
         self.frame_local = get_param('~frame_local', 'ENU')
         self.frame_local_imu = get_param('~frame_local_imu', 'ENU')
 
-        self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray,
-                                        queue_size=10)
         self.diag_msg = DiagnosticArray()
         self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
                                            message='No status information')
@@ -72,20 +70,17 @@ class XSensDriver(object):
                                          message='No status information')
         self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
 
-        self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
-        self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
-        self.xgps_pub = rospy.Publisher('fix_extended', GPSFix, queue_size=10)
-        self.vel_pub = rospy.Publisher('velocity', TwistStamped, queue_size=10)
-        self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped,
-                                       queue_size=10)
-        self.temp_pub = rospy.Publisher('temperature', Float32,
-                                        queue_size=10)  # decide type+header
-        self.press_pub = rospy.Publisher('pressure', Float32,
-                                         queue_size=10)  # decide type+header
-        self.analog_in1_pub = rospy.Publisher('analog_in1',
-                                              UInt16, queue_size=10)  # same
-        self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
-                                              queue_size=10)  # same
+        # publishers created at first use to reduce topic clutter
+        self.diag_pub = None
+        self.imu_pub = None
+        self.gps_pub = None
+        self.xgps_pub = None
+        self.vel_pub = None
+        self.mag_pub = None
+        self.temp_pub = None  # decide type+header
+        self.press_pub = None  # decide type+header
+        self.analog_in1_pub = None  # decide type+header
+        self.analog_in2_pub = None  # decide type+header
         # TODO pressure, ITOW from raw GPS?
         self.old_bGPS = 256  # publish GPS only if new
 
@@ -519,27 +514,54 @@ class XSensDriver(object):
         # publish available information
         if self.pub_imu:
             self.imu_msg.header = self.h
+            if self.imu_pub is None:
+                self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
             self.imu_pub.publish(self.imu_msg)
         if self.pub_gps:
             self.xgps_msg.header = self.gps_msg.header = self.h
+            if self.gps_pub is None:
+                self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
+                self.xgps_pub = rospy.Publisher('fix_extended', GPSFix,
+                                                queue_size=10)
             self.gps_pub.publish(self.gps_msg)
             self.xgps_pub.publish(self.xgps_msg)
         if self.pub_vel:
             self.vel_msg.header = self.h
+            if self.vel_pub is None:
+                self.vel_pub = rospy.Publisher('velocity', TwistStamped,
+                                               queue_size=10)
             self.vel_pub.publish(self.vel_msg)
         if self.pub_mag:
             self.mag_msg.header = self.h
+            if self.mag_pub is None:
+                self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped,
+                                               queue_size=10)
             self.mag_pub.publish(self.mag_msg)
         if self.pub_temp:
+            if self.temp_pub is None:
+                self.temp_pub = rospy.Publisher('temperature', Float32,
+                                                queue_size=10)
             self.temp_pub.publish(self.temp_msg)
         if self.pub_press:
+            if self.press_pub is None:
+                self.press_pub = rospy.Publisher('pressure', Float32,
+                                                 queue_size=10)
             self.press_pub.publish(self.press_msg)
         if self.pub_anin1:
+            if self.pub_anin1:
+                self.analog_in1_pub = rospy.Publisher('analog_in1',
+                                                      UInt16, queue_size=10)
             self.analog_in1_pub.publish(self.anin1_msg)
         if self.pub_anin2:
+            if self.pub_anin2:
+                self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
+                                                      queue_size=10)
             self.analog_in2_pub.publish(self.anin2_msg)
         if self.pub_diag:
             self.diag_msg.header = self.h
+            if self.diag_pub is None:
+                self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray,
+                                                queue_size=10)
             self.diag_pub.publish(self.diag_msg)
         # publish string representation
         self.str_pub.publish(str(data))

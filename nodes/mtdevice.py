@@ -657,6 +657,12 @@ class MTDevice(object):
 
         def parse_orientation_data(data_id, content, ffmt):
             o = {}
+            if (data_id & 0x000C) == 0x00:  # ENU
+                o['frame'] = 'ENU'
+            elif (data_id & 0x000C) == 0x04:  # NED
+                o['frame'] = 'NED'
+            elif (data_id & 0x000C) == 0x08:  # NWU
+                o['frame'] = 'NWU'
             if (data_id & 0x00F0) == 0x10:  # Quaternion
                 o['Q0'], o['Q1'], o['Q2'], o['Q3'] = struct.unpack('!'+4*ffmt,
                                                                    content)
@@ -680,6 +686,12 @@ class MTDevice(object):
 
         def parse_acceleration(data_id, content, ffmt):
             o = {}
+            if (data_id & 0x000C) == 0x00:  # ENU
+                o['frame'] = 'ENU'
+            elif (data_id & 0x000C) == 0x04:  # NED
+                o['frame'] = 'NED'
+            elif (data_id & 0x000C) == 0x08:  # NWU
+                o['frame'] = 'NWU'
             if (data_id & 0x00F0) == 0x10:  # Delta V
                 o['Delta v.x'], o['Delta v.y'], o['Delta v.z'] = \
                     struct.unpack('!'+3*ffmt, content)
@@ -698,6 +710,12 @@ class MTDevice(object):
 
         def parse_position(data_id, content, ffmt):
             o = {}
+            if (data_id & 0x000C) == 0x00:  # ENU
+                o['frame'] = 'ENU'
+            elif (data_id & 0x000C) == 0x04:  # NED
+                o['frame'] = 'NED'
+            elif (data_id & 0x000C) == 0x08:  # NWU
+                o['frame'] = 'NWU'
             if (data_id & 0x00F0) == 0x10:  # Altitude MSL  # deprecated
                 o['altMsl'], = struct.unpack('!'+ffmt, content)
             elif (data_id & 0x00F0) == 0x20:  # Altitude Ellipsoid
@@ -750,6 +768,12 @@ class MTDevice(object):
 
         def parse_angular_velocity(data_id, content, ffmt):
             o = {}
+            if (data_id & 0x000C) == 0x00:  # ENU
+                o['frame'] = 'ENU'
+            elif (data_id & 0x000C) == 0x04:  # NED
+                o['frame'] = 'NED'
+            elif (data_id & 0x000C) == 0x08:  # NWU
+                o['frame'] = 'NWU'
             if (data_id & 0x00F0) == 0x20:  # Rate of Turn
                 o['gyrX'], o['gyrY'], o['gyrZ'] = \
                     struct.unpack('!'+3*ffmt, content)
@@ -822,6 +846,12 @@ class MTDevice(object):
 
         def parse_magnetic(data_id, content, ffmt):
             o = {}
+            if (data_id & 0x000C) == 0x00:  # ENU
+                o['frame'] = 'ENU'
+            elif (data_id & 0x000C) == 0x04:  # NED
+                o['frame'] = 'NED'
+            elif (data_id & 0x000C) == 0x08:  # NWU
+                o['frame'] = 'NWU'
             if (data_id & 0x00F0) == 0x20:  # Magnetic Field
                 o['magX'], o['magY'], o['magZ'] = \
                     struct.unpack("!3"+ffmt, content)
@@ -831,6 +861,12 @@ class MTDevice(object):
 
         def parse_velocity(data_id, content, ffmt):
             o = {}
+            if (data_id & 0x000C) == 0x00:  # ENU
+                o['frame'] = 'ENU'
+            elif (data_id & 0x000C) == 0x04:  # NED
+                o['frame'] = 'NED'
+            elif (data_id & 0x000C) == 0x08:  # NWU
+                o['frame'] = 'NWU'
             if (data_id & 0x00F0) == 0x10:  # Velocity XYZ
                 o['velX'], o['velY'], o['velZ'] = \
                     struct.unpack("!3"+ffmt, content)
@@ -947,6 +983,10 @@ class MTDevice(object):
             # calibrated data
             if mode & OutputMode.Calib:
                 o = {}
+                if (settings & OutputSettings.Coordinates_NED):
+                    o['frame'] = 'NED'
+                else:
+                    o['frame'] = 'ENU'
                 if not (settings & OutputSettings.CalibMode_GyrMag):
                     o['accX'], o['accY'], o['accZ'] = struct.unpack('!3f',
                                                                     data[:12])
@@ -963,6 +1003,10 @@ class MTDevice(object):
             # orientation
             if mode & OutputMode.Orient:
                 o = {}
+                if (settings & OutputSettings.Coordinates_NED):
+                    o['frame'] = 'NED'
+                else:
+                    o['frame'] = 'ENU'
                 if settings & OutputSettings.OrientMode_Euler:
                     o['roll'], o['pitch'], o['yaw'] = struct.unpack('!3f',
                                                                     data[:12])
@@ -996,6 +1040,10 @@ class MTDevice(object):
             # velocity
             if mode & OutputMode.Velocity:
                 o = {}
+                if (settings & OutputSettings.Coordinates_NED):
+                    o['frame'] = 'NED'
+                else:
+                    o['frame'] = 'ENU'
                 o['Vel_X'], o['Vel_Y'], o['Vel_Z'] = struct.unpack('!3f',
                                                                    data[:12])
                 data = data[12:]

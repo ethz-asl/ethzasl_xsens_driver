@@ -179,7 +179,7 @@ class XSensDriver(object):
             try:
                 self.pub_imu = True
                 x, y, z = convert_coords(imu_data['gyrX'], imu_data['gyrY'],
-                                         imu_data['gyrZ'])
+                                         imu_data['gyrZ'], source=o['frame'])
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
@@ -196,7 +196,7 @@ class XSensDriver(object):
             try:
                 self.pub_imu = True
                 x, y, z = convert_coords(imu_data['accX'], imu_data['accY'],
-                                         imu_data['accZ'])
+                                         imu_data['accZ'], source=o['frame'])
                 self.imu_msg.linear_acceleration.x = x
                 self.imu_msg.linear_acceleration.y = y
                 self.imu_msg.linear_acceleration.z = z
@@ -208,7 +208,7 @@ class XSensDriver(object):
             try:
                 self.pub_mag = True
                 x, y, z = convert_coords(imu_data['magX'], imu_data['magY'],
-                                         imu_data['magZ'])
+                                         imu_data['magZ'], source=o['frame'])
                 self.mag_msg.vector.x = x
                 self.mag_msg.vector.y = y
                 self.mag_msg.vector.z = z
@@ -220,7 +220,7 @@ class XSensDriver(object):
             self.pub_vel = True
             x, y, z = convert_coords(
                 velocity_data['Vel_X'], velocity_data['Vel_Y'],
-                velocity_data['Vel_Z'])
+                velocity_data['Vel_Z'], source=o['frame'])
             self.vel_msg.twist.linear.x = x
             self.vel_msg.twist.linear.y = y
             self.vel_msg.twist.linear.z = z
@@ -347,7 +347,7 @@ class XSensDriver(object):
                 x, y, z, w = quaternion_from_matrix(m)
             except KeyError:
                 pass
-            x, y, z = convert_coords(x, y, z)  # TODO check
+            x, y, z = convert_coords(x, y, z, source=o['frame'])  # TODO check
             self.imu_msg.orientation.x = x
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z
@@ -378,7 +378,7 @@ class XSensDriver(object):
                 x, y, z = o['accX'], o['accY'], o['accZ']
             except KeyError:
                 pass
-            x, y, z = convert_coords(x, y, z)
+            x, y, z = convert_coords(x, y, z, source=o['frame'])
             self.imu_msg.linear_acceleration.x = x
             self.imu_msg.linear_acceleration.y = y
             self.imu_msg.linear_acceleration.z = z
@@ -402,7 +402,8 @@ class XSensDriver(object):
             '''Fill messages with information from 'Angular Velocity' MTData2
             block.'''
             try:
-                x, y, z = convert_coords(o['gyrX'], o['gyrY'], o['gyrZ'])
+                x, y, z = convert_coords(o['gyrX'], o['gyrY'], o['gyrZ'],
+                                         source=o['frame'])
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
@@ -461,7 +462,8 @@ class XSensDriver(object):
 
         def fill_from_Magnetic(o):
             '''Fill messages with information from 'Magnetic' MTData2 block.'''
-            x, y, z = convert_coords(o['magX'], o['magY'], o['magZ'])
+            x, y, z = convert_coords(o['magX'], o['magY'], o['magZ'],
+                                     source=o['frame'])
             self.mag_msg.vector.x = x
             self.mag_msg.vector.y = y
             self.mag_msg.vector.z = z
@@ -469,7 +471,8 @@ class XSensDriver(object):
 
         def fill_from_Velocity(o):
             '''Fill messages with information from 'Velocity' MTData2 block.'''
-            x, y, z = convert_coords(o['velX'], o['velY'], o['velZ'])
+            x, y, z = convert_coords(o['velX'], o['velY'], o['velZ'],
+                                     source=o['frame'])
             self.vel_msg.twist.linear.x = x
             self.vel_msg.twist.linear.y = y
             self.vel_msg.twist.linear.z = z

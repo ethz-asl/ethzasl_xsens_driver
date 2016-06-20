@@ -59,7 +59,6 @@ class XSensDriver(object):
         self.frame_id = get_param('~frame_id', '/base_imu')
 
         self.frame_local = get_param('~frame_local', 'ENU')
-        self.frame_local_imu = get_param('~frame_local_imu', 'ENU')
 
         self.diag_msg = DiagnosticArray()
         self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
@@ -122,8 +121,7 @@ class XSensDriver(object):
 
     def spin_once(self):
         '''Read data from device and publishes ROS messages.'''
-        def convert_coords(x, y, z, source=self.frame_local_imu,
-                           dest=self.frame_local):
+        def convert_coords(x, y, z, source_frame, dest=self.frame_local):
             """Convert the coordinates between ENU, NED, and NWU."""
             if source == dest:
                 return x, y, z
@@ -174,7 +172,7 @@ class XSensDriver(object):
             try:
                 self.pub_imu = True
                 x, y, z = convert_coords(imu_data['gyrX'], imu_data['gyrY'],
-                                         imu_data['gyrZ'], source=o['frame'])
+                                         imu_data['gyrZ'], o['frame'])
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
@@ -191,7 +189,7 @@ class XSensDriver(object):
             try:
                 self.pub_imu = True
                 x, y, z = convert_coords(imu_data['accX'], imu_data['accY'],
-                                         imu_data['accZ'], source=o['frame'])
+                                         imu_data['accZ'], o['frame'])
                 self.imu_msg.linear_acceleration.x = x
                 self.imu_msg.linear_acceleration.y = y
                 self.imu_msg.linear_acceleration.z = z
@@ -203,7 +201,7 @@ class XSensDriver(object):
             try:
                 self.pub_mag = True
                 x, y, z = convert_coords(imu_data['magX'], imu_data['magY'],
-                                         imu_data['magZ'], source=o['frame'])
+                                         imu_data['magZ'], o['frame'])
                 self.mag_msg.vector.x = x
                 self.mag_msg.vector.y = y
                 self.mag_msg.vector.z = z
@@ -215,7 +213,7 @@ class XSensDriver(object):
             self.pub_vel = True
             x, y, z = convert_coords(
                 velocity_data['Vel_X'], velocity_data['Vel_Y'],
-                velocity_data['Vel_Z'], source=o['frame'])
+                velocity_data['Vel_Z'], o['frame'])
             self.vel_msg.twist.linear.x = x
             self.vel_msg.twist.linear.y = y
             self.vel_msg.twist.linear.z = z
@@ -342,7 +340,7 @@ class XSensDriver(object):
                 x, y, z, w = quaternion_from_matrix(m)
             except KeyError:
                 pass
-            x, y, z = convert_coords(x, y, z, source=o['frame'])  # TODO check
+            x, y, z = convert_coords(x, y, z, o['frame'])  # TODO check
             self.imu_msg.orientation.x = x
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z
@@ -373,7 +371,7 @@ class XSensDriver(object):
                 x, y, z = o['accX'], o['accY'], o['accZ']
             except KeyError:
                 pass
-            x, y, z = convert_coords(x, y, z, source=o['frame'])
+            x, y, z = convert_coords(x, y, z, o['frame'])
             self.imu_msg.linear_acceleration.x = x
             self.imu_msg.linear_acceleration.y = y
             self.imu_msg.linear_acceleration.z = z
@@ -398,7 +396,7 @@ class XSensDriver(object):
             block.'''
             try:
                 x, y, z = convert_coords(o['gyrX'], o['gyrY'], o['gyrZ'],
-                                         source=o['frame'])
+                                         o['frame'])
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
@@ -458,7 +456,7 @@ class XSensDriver(object):
         def fill_from_Magnetic(o):
             '''Fill messages with information from 'Magnetic' MTData2 block.'''
             x, y, z = convert_coords(o['magX'], o['magY'], o['magZ'],
-                                     source=o['frame'])
+                                     o['frame'])
             self.mag_msg.vector.x = x
             self.mag_msg.vector.y = y
             self.mag_msg.vector.z = z
@@ -467,7 +465,7 @@ class XSensDriver(object):
         def fill_from_Velocity(o):
             '''Fill messages with information from 'Velocity' MTData2 block.'''
             x, y, z = convert_coords(o['velX'], o['velY'], o['velZ'],
-                                     source=o['frame'])
+                                     o['frame'])
             self.vel_msg.twist.linear.x = x
             self.vel_msg.twist.linear.y = y
             self.vel_msg.twist.linear.z = z

@@ -16,7 +16,7 @@ verbose = False
 class MTDevice(object):
 	"""XSens MT device communication object."""
 
-	def __init__(self, port, baudrate=115200, timeout=0.002, autoconf=True,
+	def __init__(self, port, baudrate=115200, timeout=0.02, autoconf=True,
 			config_mode=False):
 		"""Open device."""
 		## serial interface to the device
@@ -111,11 +111,10 @@ class MTDevice(object):
 			# Makes sure the buffer has 'size' bytes.
 			def waitfor(size=1):
 				read_buf = self.device.read(size)
-				for _ in range(10):
-					if len(read_buf) == size:
-						return read_buf
+				while len(read_buf) < size:
 					read_buf += self.device.read(size-len(read_buf))
-				raise MTException("timeout waiting for message.")
+					sys.stderr.write("MT : timeout waiting for message.")
+				return read_buf
 
 			if ord(waitfor())<>0xFA:
 				continue

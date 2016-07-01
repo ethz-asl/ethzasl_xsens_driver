@@ -1455,35 +1455,60 @@ def main():
 
 def inspect(mt, device, baudrate):
     """Inspection."""
-    def try_message(m, f, *args, **kwargs):
+    def config_fmt(config):
+        """Hexadecimal configuration."""
+        return '[%s]' % ', '.join('(0x%04X, %d)' % (mode, freq)
+                                  for (mode, freq) in config)
+
+    def hex_fmt(size=4):
+        """Factory for hexadecimal representation formatter."""
+        fmt = '0x%%0%dX' % (2*size)
+        def f(value):
+            """Hexadecimal representation."""
+            # length of string is twice the size of the value (in bytes)
+            return fmt % value
+        return f
+
+    def sync_fmt(settings):
+        """Synchronization settings: N*12 bytes"""
+        return '[%s]' % ', '.join('(0x%02X, 0x%02X, 0x%02X, 0x%02X,'
+                                  ' 0x%04X, 0x%04X, 0x%04X, 0x%04X)' % s
+                                  for s in settings)
+
+    def try_message(m, f, formater=None, *args, **kwargs):
         print '  %s ' % m,
         try:
-            pprint.pprint(f(*args, **kwargs), indent=4)
+            if formater is not None:
+                print formater(f(*args, **kwargs))
+            else:
+                pprint.pprint(f(*args, **kwargs), indent=4)
         except MTErrorMessage as e:
             if e.code == 0x04:
                 print 'message unsupported by your device.'
             else:
                 raise e
     print "Device: %s at %d Bd:" % (device, baudrate)
-    try_message("device ID:", mt.GetDeviceID)
+    try_message("device ID:", mt.GetDeviceID, hex_fmt(4))
     try_message("product code:", mt.GetProductCode)
     try_message("firmware revision:", mt.GetFirmwareRev)
     try_message("baudrate:", mt.GetBaudrate)
-    try_message("error mode:", mt.GetErrorMode)
-    try_message("option flags:", mt.GetOptionFlags)
-    try_message("location ID:", mt.GetLocationID)
+    try_message("error mode:", mt.GetErrorMode, hex_fmt(2))
+    try_message("option flags:", mt.GetOptionFlags, hex_fmt(8))
+    try_message("location ID:", mt.GetLocationID, hex_fmt(2))
     try_message("transmit delay:", mt.GetTransmitDelay)
-    try_message("synchronization settings:", mt.GetSyncSettings)
+    try_message("synchronization settings:", mt.GetSyncSettings, sync_fmt)
     try_message("general configuration:", mt.GetConfiguration)
     try_message("output configuration (mark IV devices):",
-                mt.GetOutputConfiguration)
+                mt.GetOutputConfiguration, config_fmt)
     try_message("string output type:", mt.GetStringOutputType)
     try_message("period:", mt.GetPeriod)
-    try_message("alignment rotation sensor:", mt.GetAlignmentRotation, 0)
-    try_message("alignment rotation local:", mt.GetAlignmentRotation, 1)
-    try_message("output mode:", mt.GetOutputMode)
-    try_message("extended output mode:", mt.GetExtOutputMode)
-    try_message("output settings:", mt.GetOutputSettings)
+    try_message("alignment rotation sensor:", mt.GetAlignmentRotation,
+                parameter=0)
+    try_message("alignment rotation local:", mt.GetAlignmentRotation,
+                parameter=1)
+    try_message("output mode:", mt.GetOutputMode, hex_fmt(2))
+    try_message("extended output mode:", mt.GetExtOutputMode, hex_fmt(2))
+    try_message("output settings:", mt.GetOutputSettings, hex_fmt(4))
     try_message("GPS coordinates (lat, lon, alt):", mt.GetLatLonAlt)
     try_message("available scenarios:", mt.GetAvailableScenarios)
     try_message("current scenario ID:", mt.GetCurrentScenario)

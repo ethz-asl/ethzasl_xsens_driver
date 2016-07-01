@@ -13,7 +13,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
 
 # transform Euler angles or matrix into quaternions
-from math import radians
+from math import radians, sqrt
 from tf.transformations import quaternion_from_matrix, quaternion_from_euler,\
     identity_matrix
 
@@ -136,6 +136,43 @@ class XSensDriver(object):
             elif dest == 'NWU':
                 x, y, z = y, -x, z
             return x, y, z
+
+        def convert_quat(q, source, dest=self.frame_local):
+            """Convert a quaternion between ENU, NED, and NWU."""
+            def q_mult((w0, x0, y0, z0), (w1, x1, y1, z1)):
+                """Quaternion multiplication."""
+                w = w0*w1 - x0*x1 - y0*y1 - z0*z1
+                x = w0*x1 + x0*w1 + y0*z1 - z0*y1
+                y = w0*y1 - x0*z1 + y0*w1 + z0*x1
+                z = w0*z1 + x0*y1 - y0*x1 + z0*w1
+                return (w, x, y, z)
+            q_enu_ned = (0, 1./sqrt(2), 1./sqrt(2), 0)
+            q_enu_nwu = (1./sqrt(2), 0, 0, -1./sqrt(2))
+            q_ned_nwu = (0, -1, 0, 0)
+            q_ned_enu = (0, -1./sqrt(2), -1./sqrt(2), 0)
+            q_nwu_enu = (1./sqrt(2), 0, 0, 1./sqrt(2))
+            q_nwu_ned = (0, 1, 0, 0)
+            if source == 'ENU':
+                if dest == 'ENU':
+                    return q
+                elif dest == 'NED':
+                    return q_mult(q_enu_ned, q)
+                elif dest == 'NWU':
+                    return q_mult(q_enu_nwu, q)
+            elif source == 'NED':
+                if dest == 'ENU':
+                    return q_mult(q_ned_enu, q)
+                elif dest == 'NED':
+                    return q
+                elif dest == 'NWU':
+                    return q_mult(q_ned_nwu, q)
+            elif source == 'NWU':
+                if dest == 'ENU':
+                    return q_mult(q_nwu_enu, q)
+                elif dest == 'NED':
+                    return q_mult(q_nwu_ned, q)
+                elif dest == 'NWU':
+                    return q
 
         def fill_from_raw(raw_data):
             '''Fill messages with information from 'raw' MTData block.'''
@@ -340,7 +377,7 @@ class XSensDriver(object):
                 x, y, z, w = quaternion_from_matrix(m)
             except KeyError:
                 pass
-            x, y, z = convert_coords(x, y, z, o['frame'])  # TODO check
+            w, x, y, z = convert_quat((w, x, y, z), o['frame'])
             self.imu_msg.orientation.x = x
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z

@@ -4,6 +4,7 @@ import rospy
 import select
 
 import mtdevice
+import mtdef
 
 from std_msgs.msg import Header, Float32, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
@@ -530,7 +531,11 @@ class XSensDriver(object):
             return "fill_from_%s" % (name.replace(" ", "_"))
 
         # get data
-        data = self.mt.read_measurement()
+        try:
+            data = self.mt.read_measurement()
+        except mtdef.MTTimeoutException:
+            time.sleep(0.1)
+            return
         # common header
         self.h = Header()
         self.h.stamp = rospy.Time.now()

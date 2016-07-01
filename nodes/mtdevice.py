@@ -1529,7 +1529,7 @@ def get_output_config(config_arg):
         'sw': (0xE020, 2000)
     }
     # format flags
-    format_dict = {'f': 0x00, 'd': 0x03, 'e': 0x00, 'n': 0x04, 'w': 0x80}
+    format_dict = {'f': 0x00, 'd': 0x03, 'e': 0x00, 'n': 0x04, 'w': 0x08}
     config_re = re.compile('([a-z]{2})(\d+)?([fdenw])?([fdnew])?')
     output_configuration = []
     try:

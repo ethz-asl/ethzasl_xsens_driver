@@ -121,7 +121,7 @@ class XSensDriver(object):
 
     def spin_once(self):
         '''Read data from device and publishes ROS messages.'''
-        def convert_coords(x, y, z, source_frame, dest=self.frame_local):
+        def convert_coords(x, y, z, source, dest=self.frame_local):
             """Convert the coordinates between ENU, NED, and NWU."""
             if source == dest:
                 return x, y, z

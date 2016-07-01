@@ -9,7 +9,8 @@ import re
 import pprint
 
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
-    XDIGroup, getMIDName, DeviceState, DeprecatedMID, MTErrorMessage
+    XDIGroup, getMIDName, DeviceState, DeprecatedMID, MTErrorMessage, \
+    MTTimeoutException
 
 
 ################################################################
@@ -77,7 +78,7 @@ class MTDevice(object):
             if self.verbose:
                 print "waiting for %d bytes, got %d so far: [%s]" % \
                     (size, len(buf), ' '.join('%02X' % v for v in buf))
-        raise MTException("timeout waiting for message.")
+        raise MTTimeoutException("waiting for message")
 
     def read_data_msg(self, buf=bytearray()):
         """Low-level MTData receiving function.
@@ -1463,6 +1464,7 @@ def inspect(mt, device, baudrate):
     def hex_fmt(size=4):
         """Factory for hexadecimal representation formatter."""
         fmt = '0x%%0%dX' % (2*size)
+
         def f(value):
             """Hexadecimal representation."""
             # length of string is twice the size of the value (in bytes)

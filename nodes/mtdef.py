@@ -276,6 +276,14 @@ class MTException(Exception):
         return self.message
 
 
+class MTTimeoutException(MTException):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return 'Timeout: %s' % self.message
+
+
 class MTErrorMessage(MTException):
     ErrorCodes = {
         0x03: 'Invalid period',

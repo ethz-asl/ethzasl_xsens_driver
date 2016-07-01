@@ -123,7 +123,9 @@ class MID:
 	## Initiate No Rotation procedure (not on MTi-G), 2 bytes
 	SetNoRotation = 0x22
 
-
+	# extended Motion Tracker Specification (eMTS) data
+	ReqEmts = 0x90
+	Emts = 0x91
 
 def getName(cls, value):
 	'''Return the name of the first found member of class cls with given

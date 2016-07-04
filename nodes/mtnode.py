@@ -7,7 +7,7 @@ import mtdevice
 
 from std_msgs.msg import Header, Float32, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
-from geometry_msgs.msg import TwistStamped, Vector3Stamped
+from geometry_msgs.msg import TwistStamped, Vector3Stamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
@@ -80,6 +80,7 @@ class XSensDriver(object):
         self.press_pub = None  # decide type+header
         self.analog_in1_pub = None  # decide type+header
         self.analog_in2_pub = None  # decide type+header
+        self.ecef_pub = None
         # TODO pressure, ITOW from raw GPS?
         self.old_bGPS = 256  # publish GPS only if new
 
@@ -107,6 +108,8 @@ class XSensDriver(object):
         self.pub_anin1 = False
         self.anin2_msg = UInt16()
         self.pub_anin2 = False
+        self.ecef_msg = PointStamped()
+        self.pub_ecef = False
         self.pub_diag = False
 
     def spin(self):
@@ -424,7 +427,6 @@ class XSensDriver(object):
 
         def fill_from_Position(o):
             '''Fill messages with information from 'Position' MTData2 block.'''
-            # TODO publish ECEF
             try:
                 self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
                 self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
@@ -433,6 +435,29 @@ class XSensDriver(object):
                 self.xgps_msg.altitude = self.gps_msg.altitude = alt
             except KeyError:
                 pass
+            try:
+                x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
+                self.ecef_msg.point.x = x
+                self.ecef_msg.point.y = y
+                self.ecef_msg.point.z = z
+                self.pub_ecef = True
+            except KeyError:
+                pass
+
+        def fill_from_GNSS(o):
+            '''Fill messages with information from 'GNSS' MTData2 block.'''
+            # TODO DOP
+            # TODO SOL
+            try:    # Time UTC
+                y, m, d, hr, mi, s, ns, f = o['year'], o['month'], o['day'],\
+                    o['hour'], o['min'], o['sec'], o['nano'], o['valid']
+                if f & 0x4:
+                    secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
+                    self.h.stamp.secs = secs
+                    self.h.stamp.nsecs = ns
+            except KeyError:
+                pass
+            # TODO publish SV Info
 
         def fill_from_Angular_Velocity(o):
             '''Fill messages with information from 'Angular Velocity' MTData2
@@ -594,6 +619,12 @@ class XSensDriver(object):
                 self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
                                                       queue_size=10)
             self.analog_in2_pub.publish(self.anin2_msg)
+        if self.pub_ecef:
+            self.ecef_msg.header = self.h
+            if self.ecef_pub is None:
+                self.ecef_pub = rospy.Publisher('ecef', PointStamped,
+                                                queue_size=10)
+            self.ecef_pub.publish(self.ecef_msg)
         if self.pub_diag:
             self.diag_msg.header = self.h
             if self.diag_pub is None:

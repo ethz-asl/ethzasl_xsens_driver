@@ -174,13 +174,14 @@ class XSensDriver(object):
                 elif dest == 'NWU':
                     return q
 
-        def fill_from_raw(raw_data):
+        # MTData
+        def fill_from_RAW(raw_data):
             '''Fill messages with information from 'raw' MTData block.'''
             # don't publish raw imu data anymore
             # TODO find what to do with that
-            pass
+            rospy.loginfo("Got MTi data packet: 'RAW', ignored!")
 
-        def fill_from_rawgps(rawgps_data):
+        def fill_from_RAWGPS(rawgps_data):
             '''Fill messages with information from 'rawgps' MTData block.'''
             if rawgps_data['bGPS'] < self.old_bGPS:
                 self.pub_gps = True
@@ -245,16 +246,6 @@ class XSensDriver(object):
             except KeyError:
                 pass
 
-        def fill_from_Vel(velocity_data):
-            '''Fill messages with information from 'velocity' MTData block.'''
-            self.pub_vel = True
-            x, y, z = convert_coords(
-                velocity_data['Vel_X'], velocity_data['Vel_Y'],
-                velocity_data['Vel_Z'], o['frame'])
-            self.vel_msg.twist.linear.x = x
-            self.vel_msg.twist.linear.y = y
-            self.vel_msg.twist.linear.z = z
-
         def fill_from_Orient(orient_data):
             '''Fill messages with information from 'orientation' MTData block.
             '''
@@ -277,6 +268,19 @@ class XSensDriver(object):
                                                    0., radians(1.), 0.,
                                                    0., 0., radians(9.))
 
+        def fill_from_Auxiliary(aux_data):
+            '''Fill messages with information from 'Auxiliary' MTData block.'''
+            try:
+                self.anin1_msg.data = o['Ain_1']
+                self.pub_anin1 = True
+            except KeyError:
+                pass
+            try:
+                self.anin2_msg.data = o['Ain_2']
+                self.pub_anin2 = True
+            except KeyError:
+                pass
+
         def fill_from_Pos(position_data):
             '''Fill messages with information from 'position' MTData block.'''
             self.pub_gps = True
@@ -286,6 +290,16 @@ class XSensDriver(object):
                 position_data['Lon']
             self.xgps_msg.altitude = self.gps_msg.altitude = \
                 position_data['Alt']
+
+        def fill_from_Vel(velocity_data):
+            '''Fill messages with information from 'velocity' MTData block.'''
+            self.pub_vel = True
+            x, y, z = convert_coords(
+                velocity_data['Vel_X'], velocity_data['Vel_Y'],
+                velocity_data['Vel_Z'], o['frame'])
+            self.vel_msg.twist.linear.x = x
+            self.vel_msg.twist.linear.y = y
+            self.vel_msg.twist.linear.z = z
 
         def fill_from_Stat(status):
             '''Fill messages with information from 'status' MTData block.'''
@@ -321,19 +335,11 @@ class XSensDriver(object):
                 self.xgps_msg.status.motion_source = 0b01101000
                 self.xgps_msg.status.orientation_source = 0b01101000
 
-        def fill_from_Auxiliary(aux_data):
-            '''Fill messages with information from 'Auxiliary' MTData block.'''
-            try:
-                self.anin1_msg.data = o['Ain_1']
-                self.pub_anin1 = True
-            except KeyError:
-                pass
-            try:
-                self.anin2_msg.data = o['Ain_2']
-                self.pub_anin2 = True
-            except KeyError:
-                pass
+        def fill_from_Sample(o):
+            '''Catch 'Sample' MTData blocks.'''
+            rospy.loginfo("Got MTi data packet: 'Sample', ignored!")
 
+        # MTData2
         def fill_from_Temperature(o):
             '''Fill messages with information from 'Temperature' MTData2 block.
             '''
@@ -521,10 +527,6 @@ class XSensDriver(object):
             except KeyError:
                 pass
             # TODO RSSI
-
-        def fill_from_Sample(o):
-            '''Catch 'Sample' MTData blocks.'''
-            rospy.logdebug("Got MTi data packet: 'Sample', ignored!")
 
         def find_handler_name(name):
             return "fill_from_%s" % (name.replace(" ", "_"))

@@ -583,12 +583,12 @@ class XSensDriver(object):
                                                  queue_size=10)
             self.press_pub.publish(self.press_msg)
         if self.pub_anin1:
-            if self.pub_anin1:
+            if self.pub_analog_in1_pub is None:
                 self.analog_in1_pub = rospy.Publisher('analog_in1',
                                                       UInt16, queue_size=10)
             self.analog_in1_pub.publish(self.anin1_msg)
         if self.pub_anin2:
-            if self.pub_anin2:
+            if self.pub_analog_in2_pub is None:
                 self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
                                                       queue_size=10)
             self.analog_in2_pub.publish(self.anin2_msg)

@@ -7,8 +7,8 @@ import mtdevice
 import mtdef
 
 from std_msgs.msg import Header, Float32, String, UInt16
-from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
-from geometry_msgs.msg import TwistStamped, Vector3Stamped, PointStamped
+from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField
+from geometry_msgs.msg import TwistStamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
@@ -99,7 +99,8 @@ class XSensDriver(object):
         self.pub_gps = False
         self.vel_msg = TwistStamped()
         self.pub_vel = False
-        self.mag_msg = Vector3Stamped()
+        self.mag_msg = MagneticField()
+        self.mag_msg.magnetic_field_covariance = (-1., )*9
         self.pub_mag = False
         self.temp_msg = Float32()
         self.pub_temp = False
@@ -244,9 +245,9 @@ class XSensDriver(object):
                 self.pub_mag = True
                 x, y, z = convert_coords(imu_data['magX'], imu_data['magY'],
                                          imu_data['magZ'], o['frame'])
-                self.mag_msg.vector.x = x
-                self.mag_msg.vector.y = y
-                self.mag_msg.vector.z = z
+                self.mag_msg.magnetic_field.x = x
+                self.mag_msg.magnetic_field.y = y
+                self.mag_msg.magnetic_field.z = z
             except KeyError:
                 pass
 
@@ -526,9 +527,9 @@ class XSensDriver(object):
             '''Fill messages with information from 'Magnetic' MTData2 block.'''
             x, y, z = convert_coords(o['magX'], o['magY'], o['magZ'],
                                      o['frame'])
-            self.mag_msg.vector.x = x
-            self.mag_msg.vector.y = y
-            self.mag_msg.vector.z = z
+            self.mag_msg.magnetic_field.x = x
+            self.mag_msg.magnetic_field.y = y
+            self.mag_msg.magnetic_field.z = z
             self.pub_mag = True
 
         def fill_from_Velocity(o):
@@ -601,7 +602,7 @@ class XSensDriver(object):
         if self.pub_mag:
             self.mag_msg.header = self.h
             if self.mag_pub is None:
-                self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped,
+                self.mag_pub = rospy.Publisher('imu/mag', MagneticField,
                                                queue_size=10)
             self.mag_pub.publish(self.mag_msg)
         if self.pub_temp:

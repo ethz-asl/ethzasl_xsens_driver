@@ -8,7 +8,7 @@ import mtdef
 
 from std_msgs.msg import Header, Float32, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
-from geometry_msgs.msg import TwistStamped, Vector3Stamped
+from geometry_msgs.msg import TwistStamped, Vector3Stamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
@@ -81,6 +81,7 @@ class XSensDriver(object):
         self.press_pub = None  # decide type+header
         self.analog_in1_pub = None  # decide type+header
         self.analog_in2_pub = None  # decide type+header
+        self.ecef_pub = None
         # TODO pressure, ITOW from raw GPS?
         self.old_bGPS = 256  # publish GPS only if new
 
@@ -108,6 +109,8 @@ class XSensDriver(object):
         self.pub_anin1 = False
         self.anin2_msg = UInt16()
         self.pub_anin2 = False
+        self.ecef_msg = PointStamped()
+        self.pub_ecef = False
         self.pub_diag = False
 
     def spin(self):
@@ -175,13 +178,14 @@ class XSensDriver(object):
                 elif dest == 'NWU':
                     return q
 
-        def fill_from_raw(raw_data):
+        # MTData
+        def fill_from_RAW(raw_data):
             '''Fill messages with information from 'raw' MTData block.'''
             # don't publish raw imu data anymore
             # TODO find what to do with that
-            pass
+            rospy.loginfo("Got MTi data packet: 'RAW', ignored!")
 
-        def fill_from_rawgps(rawgps_data):
+        def fill_from_RAWGPS(rawgps_data):
             '''Fill messages with information from 'rawgps' MTData block.'''
             if rawgps_data['bGPS'] < self.old_bGPS:
                 self.pub_gps = True
@@ -246,16 +250,6 @@ class XSensDriver(object):
             except KeyError:
                 pass
 
-        def fill_from_Vel(velocity_data):
-            '''Fill messages with information from 'velocity' MTData block.'''
-            self.pub_vel = True
-            x, y, z = convert_coords(
-                velocity_data['Vel_X'], velocity_data['Vel_Y'],
-                velocity_data['Vel_Z'], o['frame'])
-            self.vel_msg.twist.linear.x = x
-            self.vel_msg.twist.linear.y = y
-            self.vel_msg.twist.linear.z = z
-
         def fill_from_Orient(orient_data):
             '''Fill messages with information from 'orientation' MTData block.
             '''
@@ -278,6 +272,19 @@ class XSensDriver(object):
                                                    0., radians(1.), 0.,
                                                    0., 0., radians(9.))
 
+        def fill_from_Auxiliary(aux_data):
+            '''Fill messages with information from 'Auxiliary' MTData block.'''
+            try:
+                self.anin1_msg.data = o['Ain_1']
+                self.pub_anin1 = True
+            except KeyError:
+                pass
+            try:
+                self.anin2_msg.data = o['Ain_2']
+                self.pub_anin2 = True
+            except KeyError:
+                pass
+
         def fill_from_Pos(position_data):
             '''Fill messages with information from 'position' MTData block.'''
             self.pub_gps = True
@@ -287,6 +294,16 @@ class XSensDriver(object):
                 position_data['Lon']
             self.xgps_msg.altitude = self.gps_msg.altitude = \
                 position_data['Alt']
+
+        def fill_from_Vel(velocity_data):
+            '''Fill messages with information from 'velocity' MTData block.'''
+            self.pub_vel = True
+            x, y, z = convert_coords(
+                velocity_data['Vel_X'], velocity_data['Vel_Y'],
+                velocity_data['Vel_Z'], o['frame'])
+            self.vel_msg.twist.linear.x = x
+            self.vel_msg.twist.linear.y = y
+            self.vel_msg.twist.linear.z = z
 
         def fill_from_Stat(status):
             '''Fill messages with information from 'status' MTData block.'''
@@ -322,19 +339,11 @@ class XSensDriver(object):
                 self.xgps_msg.status.motion_source = 0b01101000
                 self.xgps_msg.status.orientation_source = 0b01101000
 
-        def fill_from_Auxiliary(aux_data):
-            '''Fill messages with information from 'Auxiliary' MTData block.'''
-            try:
-                self.anin1_msg.data = o['Ain_1']
-                self.pub_anin1 = True
-            except KeyError:
-                pass
-            try:
-                self.anin2_msg.data = o['Ain_2']
-                self.pub_anin2 = True
-            except KeyError:
-                pass
+        def fill_from_Sample(o):
+            '''Catch 'Sample' MTData blocks.'''
+            rospy.loginfo("Got MTi data packet: 'Sample', ignored!")
 
+        # MTData2
         def fill_from_Temperature(o):
             '''Fill messages with information from 'Temperature' MTData2 block.
             '''
@@ -419,7 +428,6 @@ class XSensDriver(object):
 
         def fill_from_Position(o):
             '''Fill messages with information from 'Position' MTData2 block.'''
-            # TODO publish ECEF
             try:
                 self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
                 self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
@@ -428,6 +436,29 @@ class XSensDriver(object):
                 self.xgps_msg.altitude = self.gps_msg.altitude = alt
             except KeyError:
                 pass
+            try:
+                x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
+                self.ecef_msg.point.x = x
+                self.ecef_msg.point.y = y
+                self.ecef_msg.point.z = z
+                self.pub_ecef = True
+            except KeyError:
+                pass
+
+        def fill_from_GNSS(o):
+            '''Fill messages with information from 'GNSS' MTData2 block.'''
+            # TODO DOP
+            # TODO SOL
+            try:    # Time UTC
+                y, m, d, hr, mi, s, ns, f = o['year'], o['month'], o['day'],\
+                    o['hour'], o['min'], o['sec'], o['nano'], o['valid']
+                if f & 0x4:
+                    secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
+                    self.h.stamp.secs = secs
+                    self.h.stamp.nsecs = ns
+            except KeyError:
+                pass
+            # TODO publish SV Info
 
         def fill_from_Angular_Velocity(o):
             '''Fill messages with information from 'Angular Velocity' MTData2
@@ -523,10 +554,6 @@ class XSensDriver(object):
                 pass
             # TODO RSSI
 
-        def fill_from_Sample(o):
-            '''Catch 'Sample' MTData blocks.'''
-            rospy.logdebug("Got MTi data packet: 'Sample', ignored!")
-
         def find_handler_name(name):
             return "fill_from_%s" % (name.replace(" ", "_"))
 
@@ -588,15 +615,21 @@ class XSensDriver(object):
                                                  queue_size=10)
             self.press_pub.publish(self.press_msg)
         if self.pub_anin1:
-            if self.pub_anin1:
+            if self.pub_analog_in1_pub is None:
                 self.analog_in1_pub = rospy.Publisher('analog_in1',
                                                       UInt16, queue_size=10)
             self.analog_in1_pub.publish(self.anin1_msg)
         if self.pub_anin2:
-            if self.pub_anin2:
+            if self.pub_analog_in2_pub is None:
                 self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
                                                       queue_size=10)
             self.analog_in2_pub.publish(self.anin2_msg)
+        if self.pub_ecef:
+            self.ecef_msg.header = self.h
+            if self.ecef_pub is None:
+                self.ecef_pub = rospy.Publisher('ecef', PointStamped,
+                                                queue_size=10)
+            self.ecef_pub.publish(self.ecef_msg)
         if self.pub_diag:
             self.diag_msg.header = self.h
             if self.diag_pub is None:

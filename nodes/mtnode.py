@@ -6,9 +6,9 @@ import select
 import mtdevice
 import mtdef
 
-from std_msgs.msg import Header, Float32, String, UInt16
+from std_msgs.msg import Header, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
-    FluidPressure
+    FluidPressure, Temperature
 from geometry_msgs.msg import TwistStamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
@@ -78,8 +78,8 @@ class XSensDriver(object):
         self.xgps_pub = None
         self.vel_pub = None
         self.mag_pub = None
-        self.temp_pub = None  # decide type+header
-        self.press_pub = None  # decide type+header
+        self.temp_pub = None
+        self.press_pub = None
         self.analog_in1_pub = None  # decide type+header
         self.analog_in2_pub = None  # decide type+header
         self.ecef_pub = None
@@ -103,7 +103,8 @@ class XSensDriver(object):
         self.mag_msg = MagneticField()
         self.mag_msg.magnetic_field_covariance = (0, )*9
         self.pub_mag = False
-        self.temp_msg = Float32()
+        self.temp_msg = Temperature()
+        self.temp_msg.variance = 0.
         self.pub_temp = False
         self.press_msg = FluidPressure()
         self.press_msg.variance = 0.
@@ -210,7 +211,7 @@ class XSensDriver(object):
             '''Fill messages with information from 'temperature' MTData block.
             '''
             self.pub_temp = True
-            self.temp_msg.data = temp
+            self.temp_msg.temperature = temp
 
         def fill_from_Calib(imu_data):
             '''Fill messages with information from 'calibrated' MTData block.'''
@@ -351,7 +352,7 @@ class XSensDriver(object):
             '''Fill messages with information from 'Temperature' MTData2 block.
             '''
             self.pub_temp = True
-            self.temp_msg.data = o['Temp']
+            self.temp_msg.temperature = o['Temp']
 
         def fill_from_Timestamp(o):
             '''Fill messages with information from 'Timestamp' MTData2 block.'''
@@ -608,8 +609,9 @@ class XSensDriver(object):
                                                queue_size=10)
             self.mag_pub.publish(self.mag_msg)
         if self.pub_temp:
+            self.temp_msg.header = self.h
             if self.temp_pub is None:
-                self.temp_pub = rospy.Publisher('temperature', Float32,
+                self.temp_pub = rospy.Publisher('temperature', Temperature,
                                                 queue_size=10)
             self.temp_pub.publish(self.temp_msg)
         if self.pub_press:

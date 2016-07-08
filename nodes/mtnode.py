@@ -7,7 +7,8 @@ import mtdevice
 import mtdef
 
 from std_msgs.msg import Header, Float32, String, UInt16
-from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField
+from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
+    FluidPressure
 from geometry_msgs.msg import TwistStamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
@@ -104,7 +105,8 @@ class XSensDriver(object):
         self.pub_mag = False
         self.temp_msg = Float32()
         self.pub_temp = False
-        self.press_msg = Float32()
+        self.press_msg = FluidPressure()
+        self.press_msg.variance = 0.
         self.pub_press = False
         self.anin1_msg = UInt16()
         self.pub_anin1 = False
@@ -399,7 +401,7 @@ class XSensDriver(object):
 
         def fill_from_Pressure(o):
             '''Fill messages with information from 'Pressure' MTData2 block.'''
-            self.press_msg.data = o['Pressure']
+            self.press_msg.fluid_pressure = o['Pressure']
 
         def fill_from_Acceleration(o):
             '''Fill messages with information from 'Acceleration' MTData2
@@ -611,8 +613,9 @@ class XSensDriver(object):
                                                 queue_size=10)
             self.temp_pub.publish(self.temp_msg)
         if self.pub_press:
+            self.press_msg.header = self.h
             if self.press_pub is None:
-                self.press_pub = rospy.Publisher('pressure', Float32,
+                self.press_pub = rospy.Publisher('pressure', FluidPressure,
                                                  queue_size=10)
             self.press_pub.publish(self.press_msg)
         if self.pub_anin1:

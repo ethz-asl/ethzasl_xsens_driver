@@ -442,6 +442,7 @@ class XSensDriver(object):
                 pass
             try:
                 x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
+                # TODO: ecef units not specified: might not be in meters!
                 self.ecef_msg.point.x = x
                 self.ecef_msg.point.y = y
                 self.ecef_msg.point.z = z
@@ -495,6 +496,21 @@ class XSensDriver(object):
                 self.xgps_msg.vdop = o['vDOP']
                 self.xgps_msg.tdop = o['tDOP']
                 self.pub_gps = True
+            except KeyError:
+                pass
+            try:    # SOL
+                x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
+                self.ecef_msg.point.x = x * 0.01  # data is in cm
+                self.ecef_msg.point.y = y * 0.01
+                self.ecef_msg.point.z = z * 0.01
+                self.pub_ecef = True
+                vx, vy, vz = o['ecefVX'], o['ecefVY'], o['ecefVZ']
+                self.vel_msg.twist.linear.x = vx * 0.01  # data is in cm
+                self.vel_msg.twist.linear.y = vy * 0.01
+                self.vel_msg.twist.linear.z = vz * 0.01
+                self.pub_vel = True
+                # TODO there are other pieces of information that we could
+                # publish
             except KeyError:
                 pass
             try:    # Time UTC

@@ -100,7 +100,7 @@ class XSensDriver(object):
         self.vel_msg = TwistStamped()
         self.pub_vel = False
         self.mag_msg = MagneticField()
-        self.mag_msg.magnetic_field_covariance = (-1., )*9
+        self.mag_msg.magnetic_field_covariance = (0, )*9
         self.pub_mag = False
         self.temp_msg = Float32()
         self.pub_temp = False

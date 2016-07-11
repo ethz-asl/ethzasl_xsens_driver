@@ -8,11 +8,12 @@ import mtdef
 
 from std_msgs.msg import Header, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
-    FluidPressure, Temperature
+    FluidPressure, Temperature, TimeReference
 from geometry_msgs.msg import TwistStamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
+import datetime
 
 # transform Euler angles or matrix into quaternions
 from math import radians, sqrt
@@ -83,6 +84,7 @@ class XSensDriver(object):
         self.analog_in1_pub = None  # decide type+header
         self.analog_in2_pub = None  # decide type+header
         self.ecef_pub = None
+        self.time_ref_pub = None
         # TODO pressure, ITOW from raw GPS?
         self.old_bGPS = 256  # publish GPS only if new
 
@@ -181,6 +183,39 @@ class XSensDriver(object):
                     return q_mult(q_nwu_ned, q)
                 elif dest == 'NWU':
                     return q
+
+        def publish_time_ref(secs, nsecs, source):
+            """Publish a time reference."""
+            # Doesn't follow the standard publishing pattern since several time
+            # refs could be published simultaneously
+            if self.time_ref_pub is None:
+                self.time_ref_pub = rospy.Publisher(
+                    'time_reference', TimeReference, queue_size=10)
+            time_ref_msg = TimeReference()
+            time_ref_msg.header = self.h
+            time_ref_msg.time.secs = secs
+            time_ref_msg.time.nsecs = nsecs
+            time_ref_msg.source = source
+            self.time_ref_pub.publish(time_ref_msg)
+
+        def stamp_from_itow(itow, y=None, m=None, d=None, ns=0):
+            """Return (secs, nsecs) from GPS time of week information."""
+            if y is None:
+                today = datetime.date.today()  # using today by default
+                stamp_day = datetime.datetime(today.year, today.month,
+                                              today.day)
+            else:
+                stamp_day = datetime.datetime(y, m, d)
+            iso_day = stamp_day.isoweekday()  # 1 for Monday, 7 for Sunday
+            # stamp for the GPS start of the week (Sunday morning)
+            start_of_week = stamp_day - datetime.timedelta(days=iso_day)
+            # stamp at the millisecond precision
+            stamp_ms = start_of_week + datetime.timedelta(milliseconds=itow)
+            secs = time.mktime((stamp_ms.year, stamp_ms.month, stamp_ms.day,
+                                stamp_ms.hour, stamp_ms.minute,
+                                stamp_ms.second, 0, 0, -1))
+            nsecs = stamp_ms.microsecond * 1000 + ns
+            return (secs, nsecs)
 
         # MTData
         def fill_from_RAW(raw_data):
@@ -514,12 +549,11 @@ class XSensDriver(object):
             except KeyError:
                 pass
             try:    # Time UTC
-                y, m, d, hr, mi, s, ns, f = o['year'], o['month'], o['day'],\
-                    o['hour'], o['min'], o['sec'], o['nano'], o['valid']
+                itow, y, m, d, ns, f = o['iTOW'], o['year'], o['month'],\
+                    o['day'], o['nano'], o['valid']
                 if f & 0x4:
-                    secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
-                    self.h.stamp.secs = secs
-                    self.h.stamp.nsecs = ns
+                    secs, nsecs = stamp_from_itow(itow, y, m, d, ns)
+                    publish_time_ref(secs, nsecs, 'GPS Time UTC')
             except KeyError:
                 pass
             # TODO publish SV Info

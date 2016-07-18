@@ -490,18 +490,35 @@ class XSensDriver(object):
 
         def fill_from_GNSS(o):
             '''Fill messages with information from 'GNSS' MTData2 block.'''
-            # TODO DOP
-            # TODO SOL
-            try:    # Time UTC
-                y, m, d, hr, mi, s, ns, f = o['year'], o['month'], o['day'],\
-                    o['hour'], o['min'], o['sec'], o['nano'], o['valid']
+            try:  # PVT
+                # time block
+                itow, y, m, d, ns, f = o['itow'], o['year'], o['month'],\
+                    o['day'], o['nano'], o['valid']
                 if f & 0x4:
-                    secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
-                    self.h.stamp.secs = secs
-                    self.h.stamp.nsecs = ns
+                    secs, nsecs = stamp_from_itow(itow, y, m, d, ns)
+                    publish_time_ref(secs, nsecs, 'GNSS time UTC')
+                # flags
+                fixtype = o['fixtype']
+                if fixtype == 0x00:
+                    self.gps_msg.status = -1  # no fix
+                else:
+                    self.gps_msg.status = 0  # unaugmented fix
+                # lat lon alt
+                self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
+                self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
+                self.xgps_msg.altitude = self.gps_msg.altitude = o['height']/1e3
+                self.pub_gps = True
+                # TODO velocity?
+                # TODO 2D heading?
+                # DOP block
+                self.xgps_msg.gdop = o['gdop']
+                self.xgps_msg.pdop = o['pdop']
+                self.xgps_msg.hdop = o['hdop']
+                self.xgps_msg.vdop = o['vdop']
+                self.xgps_msg.tdop = o['tdop']
             except KeyError:
                 pass
-            # TODO publish SV Info
+            # TODO publish Sat Info
 
         def fill_from_Angular_Velocity(o):
             '''Fill messages with information from 'Angular Velocity' MTData2

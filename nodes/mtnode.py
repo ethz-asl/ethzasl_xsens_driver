@@ -501,9 +501,11 @@ class XSensDriver(object):
                 # flags
                 fixtype = o['fixtype']
                 if fixtype == 0x00:
-                    self.gps_msg.status = -1  # no fix
+                    self.gps_msg.status = NavSatStatus.STATUS_NO_FIX  # no fix
+                    self.gps_msg.status.service = 0
                 else:
-                    self.gps_msg.status = 0  # unaugmented fix
+                    self.gps_msg.status = NavSatStatus.STATUS_FIX  # unaugmented
+                    self.gps_msg.status.service = NavSatStatus.SERVICE_GPS
                 # lat lon alt
                 self.gps_msg.latitude = o['lat']
                 self.gps_msg.longitude = o['lon']

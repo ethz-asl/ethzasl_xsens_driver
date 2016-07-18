@@ -437,6 +437,7 @@ class XSensDriver(object):
         def fill_from_Pressure(o):
             '''Fill messages with information from 'Pressure' MTData2 block.'''
             self.press_msg.fluid_pressure = o['Pressure']
+            self.pub_press = True
 
         def fill_from_Acceleration(o):
             '''Fill messages with information from 'Acceleration' MTData2

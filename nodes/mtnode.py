@@ -195,14 +195,17 @@ class XSensDriver(object):
             time_ref_msg.source = source
             self.time_ref_pub.publish(time_ref_msg)
 
-        def stamp_from_itow(itow, y=None, m=None, d=None, ns=0):
+        def stamp_from_itow(itow, y=None, m=None, d=None, ns=0, week=None):
             """Return (secs, nsecs) from GPS time of week ms information."""
-            if y is None:
+            if y is not None:
+                stamp_day = datetime.datetime(y, m, d)
+            elif week is not None:
+                epoch = datetime.datetime(1980, 1, 6)  # GPS epoch
+                stamp_day = epoch + datetime.timedelta(weeks=week)
+            else:
                 today = datetime.date.today()  # using today by default
                 stamp_day = datetime.datetime(today.year, today.month,
                                               today.day)
-            else:
-                stamp_day = datetime.datetime(y, m, d)
             iso_day = stamp_day.isoweekday()  # 1 for Monday, 7 for Sunday
             # stamp for the GPS start of the week (Sunday morning)
             start_of_week = stamp_day - datetime.timedelta(days=iso_day)
@@ -549,6 +552,10 @@ class XSensDriver(object):
                 self.vel_msg.twist.linear.y = vy * 0.01
                 self.vel_msg.twist.linear.z = vz * 0.01
                 self.pub_vel = True
+                itow, ns, week, f = o['iTOW'], o['fTOW'], o['Week'], o['Flags']
+                if (f & 0x0C) == 0xC:
+                    secs, nsecs = stamp_from_itow(itow, ns=ns, week=week)
+                    publish_time_ref(secs, nsecs, 'GPS Time')
                 # TODO there are other pieces of information that we could
                 # publish
             except KeyError:

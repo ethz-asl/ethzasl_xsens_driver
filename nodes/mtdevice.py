@@ -709,7 +709,7 @@ class MTDevice(object):
                 o['freeAccX'], o['freeAccY'], o['freeAccZ'] = \
                     struct.unpack('!'+3*ffmt, content)
             elif (data_id & 0x00F0) == 0x40:  # AccelerationHR
-                o['AccX'], o['AccY'], o['AccZ'] = \
+                o['accX'], o['accY'], o['accZ'] = \
                     struct.unpack('!'+3*ffmt, content)
             else:
                 raise MTException("unknown packet: 0x%04X." % data_id)

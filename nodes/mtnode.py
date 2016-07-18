@@ -475,7 +475,8 @@ class XSensDriver(object):
                 self.gps_msg.latitude = o['lat']
                 self.gps_msg.longitude = o['lon']
                 self.pub_gps = True
-                alt = o.get('altMsl', o.get('altEllipsoid', 0))
+                # altMsl is deprecated
+                alt = o.get('altEllipsoid', o.get('altMsl', 0))
                 self.gps_msg.altitude = alt
             except KeyError:
                 pass

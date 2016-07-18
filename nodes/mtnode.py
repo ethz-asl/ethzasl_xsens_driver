@@ -620,7 +620,6 @@ class XSensDriver(object):
                 fill_from_Stat(status)
             except KeyError:
                 pass
-            # TODO RSSI
 
         def find_handler_name(name):
             return "fill_from_%s" % (name.replace(" ", "_"))

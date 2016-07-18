@@ -215,6 +215,9 @@ class XSensDriver(object):
                                 stamp_ms.hour, stamp_ms.minute,
                                 stamp_ms.second, 0, 0, -1))
             nsecs = stamp_ms.microsecond * 1000 + ns
+            if nsecs < 0:  # ns can be negative
+                secs -= 1
+                nsecs += 1e9
             return (secs, nsecs)
 
         # MTData

@@ -502,18 +502,13 @@ class XSensDriver(object):
                 else:
                     self.gps_msg.status = 0  # unaugmented fix
                 # lat lon alt
-                self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
-                self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
-                self.xgps_msg.altitude = self.gps_msg.altitude = o['height']/1e3
+                self.gps_msg.latitude = o['lat']
+                self.gps_msg.longitude = o['lon']
+                self.gps_msg.altitude = o['height']/1e3
                 self.pub_gps = True
                 # TODO velocity?
                 # TODO 2D heading?
-                # DOP block
-                self.xgps_msg.gdop = o['gdop']
-                self.xgps_msg.pdop = o['pdop']
-                self.xgps_msg.hdop = o['hdop']
-                self.xgps_msg.vdop = o['vdop']
-                self.xgps_msg.tdop = o['tdop']
+                # TODO DOP?
             except KeyError:
                 pass
             # TODO publish Sat Info

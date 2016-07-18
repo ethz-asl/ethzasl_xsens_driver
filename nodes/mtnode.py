@@ -196,7 +196,7 @@ class XSensDriver(object):
             self.time_ref_pub.publish(time_ref_msg)
 
         def stamp_from_itow(itow, y=None, m=None, d=None, ns=0):
-            """Return (secs, nsecs) from GPS time of week information."""
+            """Return (secs, nsecs) from GPS time of week ms information."""
             if y is None:
                 today = datetime.date.today()  # using today by default
                 stamp_day = datetime.datetime(today.year, today.month,
@@ -379,8 +379,25 @@ class XSensDriver(object):
                     o['Hour'], o['Minute'], o['Second'], o['ns'], o['Flags']
                 if f & 0x4:
                     secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
-                    self.h.stamp.secs = secs
-                    self.h.stamp.nsecs = ns
+                    publish_time_ref(secs, ns, 'UTC time')
+            except KeyError:
+                pass
+            try:
+                itow = o['TimeOfWeek']
+                secs, nsecs = stamp_from_itow(itow)
+                publish_time_ref(secs, nsecs, 'integer time of week')
+            except KeyError:
+                pass
+            try:
+                sample_time_fine = o['SampleTimeFine']
+                secs = int(sample_time_fine / 1000)
+                nsecs = 1e6 * (sample_time_fine % 1000)
+                publish_time_ref(secs, nsecs, 'sample time fine')
+            except KeyError:
+                pass
+            try:
+                sample_time_coarse = o['SampleTimeCoarse']
+                publish_time_ref(sample_time_coarse, 0, 'sample time coarse')
             except KeyError:
                 pass
             # TODO find what to do with other kind of information

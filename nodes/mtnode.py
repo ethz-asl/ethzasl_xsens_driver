@@ -457,6 +457,10 @@ class XSensDriver(object):
                 x, y, z = o['accX'], o['accY'], o['accZ']
             except KeyError:
                 pass
+            try:
+                x, y, z = o['AccX'], o['AccY'], o['AccZ']
+            except KeyError:
+                pass
             x, y, z = convert_coords(x, y, z, o['frame'])
             self.imu_msg.linear_acceleration.x = x
             self.imu_msg.linear_acceleration.y = y

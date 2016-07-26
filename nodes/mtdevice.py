@@ -500,7 +500,13 @@ class MTDevice(object):
         """
         self._ensure_config_state()
         data = self.write_ack(MID.SetLatLonAlt)
-        lat, lon, alt = struct.unpack('!ddd', data)
+        if len(data) == 24:
+            lat, lon, alt = struct.unpack('!ddd', data)
+        elif len(data) == 12:
+            lat, lon, alt = struct.unpack('!fff', data)
+        else:
+            raise MTException('Could not parse ReqLatLonAltAck message: wrong'
+                              'size of message.')
         return (lat, lon, alt)
 
     def SetLatLonAlt(self, lat, lon, alt):

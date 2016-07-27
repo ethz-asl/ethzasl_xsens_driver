@@ -228,6 +228,7 @@ class OutputSettings:
     """Values for the output settings."""
     Timestamp_None = 0x00000000
     Timestamp_SampleCnt = 0x00000001
+    Timestamp_UTCTime = 0x00000002
     OrientMode_Quaternion = 0x00000000
     OrientMode_Euler = 0x00000004
     OrientMode_Matrix = 0x00000008

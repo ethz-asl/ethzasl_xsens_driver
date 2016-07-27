@@ -1065,6 +1065,15 @@ class MTDevice(object):
                 TS, = struct.unpack('!H', data[:2])
                 data = data[2:]
                 output['Sample'] = TS
+            # UTC time
+            if settings & OutputSettings.Timestamp_UTCTime:
+                o = {}
+                o['ns'], o['Year'], o['Month'], o['Day'], o['Hour'],\
+                    o['Minute'], o['Second'], o['Flags'] = struct.unpack(
+                        '!ihbbbbb', data[:12])
+                data = data[12:]
+                output['Timestamp'] = o
+            # TODO at that point data should be empty
         except struct.error, e:
             raise MTException("could not parse MTData message.")
         if data != '':
@@ -1265,6 +1274,7 @@ Legacy options:
         characters (in any order):
             t  sample count (excludes 'n')
             n  no sample count (excludes 't')
+            u  UTC time
             q  orientation in quaternion (excludes 'e' and 'm')
             e  orientation in Euler angles (excludes 'm' and 'q')
             m  orientation in matrix (excludes 'q' and 'e')
@@ -1657,6 +1667,8 @@ def get_settings(arg):
             timestamp = OutputSettings.Timestamp_SampleCnt
         elif c == 'n':
             timestamp = OutputSettings.Timestamp_None
+        elif c == 'u':
+            timestamp |= OutputSettings.Timestamp_UTCTime
         elif c == 'q':
             orient_mode = OutputSettings.OrientMode_Quaternion
         elif c == 'e':

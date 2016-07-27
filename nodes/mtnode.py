@@ -381,9 +381,9 @@ class XSensDriver(object):
                 self.xgps_msg.status.motion_source = 0b01101000
                 self.xgps_msg.status.orientation_source = 0b01101000
 
-        def fill_from_Sample(o):
+        def fill_from_Sample(ts):
             '''Catch 'Sample' MTData blocks.'''
-            rospy.loginfo("Got MTi data packet: 'Sample', ignored!")
+            self.h.seq = ts
 
         # MTData2
         def fill_from_Temperature(o):

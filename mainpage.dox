@@ -22,13 +22,22 @@ following topics, depending on the configuration of the device:
 - \c /magnetic (<a
   href="http://www.ros.org/doc/api/geometry_msgs/html/msg/Vector3Stamped.html">geometry_msgs::Vector3Stamped</a>): direction of magnetic field,
 - \c /temperature (<a
-  href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): temperature. 
+  href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): temperature,
+- \c /pressure (<a
+  href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): pressure,
+- \c /analog_in1 (<a
+  href="http://www.ros.org/doc/api/std_msgs/html/msg/UInt16.html">std_msgs::UInt16</a>): first analog input,
+- \c /analog_in2 (<a
+  href="http://www.ros.org/doc/api/std_msgs/html/msg/UInt16.html">std_msgs::UInt16</a>): second analog input.
 
-It also publishes <a href="http://www.ros.org/wiki/diagnostics">diagnostics</a>
+It can also publish <a href="http://www.ros.org/wiki/diagnostics">diagnostics</a>
 information.
 
-If the IMU is set to raw mode, the values in of the \c /imu/data, \c /velocity and \c
-/magnetic topics are the 16 bits output of the AD converters.
+Finally, it always publishes the decoded message as a <a href="http://www.ros.org/doc/api/std_msgs/html/msg/String.html">std_msgs::String</a> representing the Python dictionary on \c /imu_data_str.
+
+If the IMU is set to raw mode, the values of the \c /imu/data, \c /velocity and \c
+/magnetic topics are the 16 bits output of the AD converters and therefore not in
+usual unit.
 
 The covariance information in the <a
  href="http://www.ros.org/doc/api/sensor_msgs/html/msg/Imu.html">sensor_msgs::Imu</a>
@@ -43,9 +52,180 @@ The nodes can take the following parameters:
 - \a ~baudrate (0): the baudrate of the IMU (unused for \c auto device); 0 will
   try to auto-detect baudrate.
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
+- \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED,
+or \c NWU).
 
 \section dialout Permissions
 
 It might be necessary to add the user to the \c dialout group so that the node can communicate with the device.
+
+\section config Configuration using mtdevice.py
+
+\b mtdevice.py can be used on the command line to configure or inspect the current configuration of the device, see usage below.
+
+\code{.unparsed}
+MT device driver.
+Usage:
+    ./mtdevice.py [commands] [opts]
+
+Commands:
+    -h, --help
+        Print this help and quit.
+    -r, --reset
+        Reset device to factory defaults.
+    -a, --change-baudrate=NEW_BAUD
+        Change baudrate from BAUD (see below) to NEW_BAUD.
+    -c, --configure=OUTPUT
+        Configure the device (see OUTPUT description below).
+    -e, --echo
+        Print MTData. It is the default if no other command is supplied.
+    -i, --inspect
+        Print current MT device configuration.
+    -x, --xkf-scenario=ID
+        Change the current XKF scenario.
+    -l, --legacy-configure
+        Configure the device in legacy mode (needs MODE and SETTINGS arguments
+        below).
+    -v, --verbose
+        Verbose output.
+
+Generic options:
+    -d, --device=DEV
+        Serial interface of the device (default: /dev/ttyUSB0). If 'auto', then
+        all serial ports are tested at all baudrates and the first
+        suitable device is used.
+    -b, --baudrate=BAUD
+        Baudrate of serial interface (default: 115200). If 0, then all
+        rates are tried until a suitable one is found.
+
+Configuration option:
+    OUTPUT
+        The format is a sequence of "<group><type><frequency>?<format>?"
+        separated by commas.
+        The frequency and format are optional.
+        The groups and types can be:
+            t  temperature (max frequency: 1 Hz):
+                tt  temperature
+            i  timestamp (max frequency: 2000 Hz):
+                iu  UTC time
+                ip  packet counter
+                ii  Integer Time of the Week (ITOW)
+                if  sample time fine
+                ic  sample time coarse
+                ir  frame range
+            o  orientation data (max frequency: 400 Hz):
+                oq  quaternion
+                om  rotation matrix
+                oe  Euler angles
+            b  pressure (max frequency: 50 Hz):
+                bp  baro pressure
+            a  acceleration (max frequency: 2000 Hz (see documentation)):
+                ad  delta v
+                aa  acceleration
+                af  free acceleration
+                ah  acceleration HR (max frequency 1000 Hz)
+            p  position (max frequency: 400 Hz):
+                pa  altitude ellipsoid
+                pp  position ECEF
+                pl  latitude longitude
+            n  GNSS (max frequency: 4 Hz):
+                np  GNSS PVT data
+                ns  GNSS satellites info
+            w  angular velocity (max frequency: 2000 Hz (see documentation)):
+                wr  rate of turn
+                wd  delta q
+                wh  rate of turn HR (max frequency 1000 Hz)
+            g  GPS (max frequency: 4 Hz):
+                gd  DOP
+                gs  SOL
+                gu  time UTC
+                gi  SV info
+            r  Sensor Component Readout (max frequency: 2000 Hz):
+                rr  ACC, GYR, MAG, temperature
+                rt  Gyro temperatures
+            m  Magnetic (max frequency: 100 Hz):
+                mf  magnetic Field
+            v  Velocity (max frequency: 400 Hz):
+                vv  velocity XYZ
+            s  Status (max frequency: 2000 Hz):
+                sb  status byte
+                sw  status word
+        Frequency is specified in decimal and is assumed to be the maximum
+        frequency if it is omitted.
+        Format is a combination of the precision for real valued numbers and
+        coordinate system:
+            precision:
+                f  single precision floating point number (32-bit) (default)
+                d  double precision floating point number (64-bit)
+            coordinate system:
+                e  East-North-Up (default)
+                n  North-East-Down
+                w  North-West-Up
+        Examples:
+            The default configuration for the MTi-1/10/100 IMUs can be
+            specified either as:
+                "wd,ad,mf,ip,if,sw"
+            or
+                "wd2000fe,ad2000fe,mf100fe,ip2000,if2000,sw2000"
+            For getting quaternion orientation in float with sample time:
+                "oq400fw,if2000"
+            For longitude, latitude, altitude and orientation (on MTi-G-700):
+                "pl400fe,pa400fe,oq400fe"
+
+Legacy options:
+    -m, --output-mode=MODE
+        Legacy mode of the device to select the information to output.
+        This is required for 'legacy-configure' command.
+        MODE can be either the mode value in hexadecimal, decimal or
+        binary form, or a string composed of the following characters
+        (in any order):
+            t  temperature, [0x0001]
+            c  calibrated data, [0x0002]
+            o  orientation data, [0x0004]
+            a  auxiliary data, [0x0008]
+            p  position data (requires MTi-G), [0x0010]
+            v  velocity data (requires MTi-G), [0x0020]
+            s  status data, [0x0800]
+            g  raw GPS mode (requires MTi-G), [0x1000]
+            r  raw (incompatible with others except raw GPS), [0x4000]
+        For example, use "--output-mode=so" to have status and
+        orientation data.
+    -s, --output-settings=SETTINGS
+        Legacy settings of the device. This is required for 'legacy-configure'
+        command.
+        SETTINGS can be either the settings value in hexadecimal,
+        decimal or binary form, or a string composed of the following
+        characters (in any order):
+            t  sample count (excludes 'n')
+            n  no sample count (excludes 't')
+            q  orientation in quaternion (excludes 'e' and 'm')
+            e  orientation in Euler angles (excludes 'm' and 'q')
+            m  orientation in matrix (excludes 'q' and 'e')
+            A  acceleration in calibrated data
+            G  rate of turn in calibrated data
+            M  magnetic field in calibrated data
+            i  only analog input 1 (excludes 'j')
+            j  only analog input 2 (excludes 'i')
+            N  North-East-Down instead of default: X North Z up
+        For example, use "--output-settings=tqMAG" for all calibrated
+        data, sample counter and orientation in quaternion.
+    -p, --period=PERIOD
+        Sampling period in (1/115200) seconds (default: 1152).
+        Minimum is 225 (1.95 ms, 512 Hz), maximum is 1152
+        (10.0 ms, 100 Hz).
+        Note that for legacy devices it is the period at which sampling occurs,
+        not the period at which messages are sent (see below).
+
+Deprecated options:
+    -f, --deprecated-skip-factor=SKIPFACTOR
+        Only for mark III devices.
+        Number of samples to skip before sending MTData message
+        (default: 0).
+        The frequency at which MTData message is send is:
+            115200/(PERIOD * (SKIPFACTOR + 1))
+        If the value is 0xffff, no data is send unless a ReqData request
+        is made.
+\endcode
+
 
 */

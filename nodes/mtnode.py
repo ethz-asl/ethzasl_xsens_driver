@@ -4,347 +4,724 @@ import rospy
 import select
 
 import mtdevice
+import mtdef
 
-from std_msgs.msg import Header, Float32
-from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
-from geometry_msgs.msg import TwistStamped, Vector3Stamped
+from std_msgs.msg import Header, String, UInt16
+from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
+    FluidPressure, Temperature, TimeReference
+from geometry_msgs.msg import TwistStamped, PointStamped
 from gps_common.msg import GPSFix, GPSStatus
-from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
-
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+import time
+import datetime
 
 # transform Euler angles or matrix into quaternions
-from math import pi, radians
-from tf.transformations import quaternion_from_matrix, quaternion_from_euler, identity_matrix
+from math import radians, sqrt
+from tf.transformations import quaternion_from_matrix, quaternion_from_euler,\
+    identity_matrix
 
-import numpy
 
 def get_param(name, default):
-	try:
-		v = rospy.get_param(name)
-		rospy.loginfo("Found parameter: %s, value: %s"%(name, str(v)))
-	except KeyError:
-		v = default
-		rospy.logwarn("Cannot find value for parameter: %s, assigning "
-				"default: %s"%(name, str(v)))
-	return v
+    try:
+        v = rospy.get_param(name)
+        rospy.loginfo("Found parameter: %s, value: %s" % (name, str(v)))
+    except KeyError:
+        v = default
+        rospy.logwarn("Cannot find value for parameter: %s, assigning "
+                      "default: %s" % (name, str(v)))
+    return v
+
 
 class XSensDriver(object):
 
-	ENU = numpy.identity(3)
-	NED = numpy.array([[0, 1, 0], [ 1, 0, 0], [0, 0, -1]])
-	NWU = numpy.array([[0, 1, 0], [-1, 0, 0], [0, 0,  1]])
+    def __init__(self):
 
-	def __init__(self):
+        device = get_param('~device', 'auto')
+        baudrate = get_param('~baudrate', 0)
+        timeout = get_param('~timeout', 0.002)
+        if device == 'auto':
+            devs = mtdevice.find_devices()
+            if devs:
+                device, baudrate = devs[0]
+                rospy.loginfo("Detected MT device on port %s @ %d bps"
+                              % (device, baudrate))
+            else:
+                rospy.logerr("Fatal: could not find proper MT device.")
+                rospy.signal_shutdown("Could not find proper MT device.")
+                return
+        if not baudrate:
+            baudrate = mtdevice.find_baudrate(device)
+        if not baudrate:
+            rospy.logerr("Fatal: could not find proper baudrate.")
+            rospy.signal_shutdown("Could not find proper baudrate.")
+            return
 
-		device = get_param('~device', 'auto')
-		baudrate = get_param('~baudrate', 0)
-		timeout = get_param('~timeout', 0.002)
-		if device=='auto':
-			devs = mtdevice.find_devices()
-			if devs:
-				device, baudrate = devs[0]
-				rospy.loginfo("Detected MT device on port %s @ %d bps"%(device,
-						baudrate))
-			else:
-				rospy.logerr("Fatal: could not find proper MT device.")
-				rospy.signal_shutdown("Could not find proper MT device.")
-				return
-		if not baudrate:
-			baudrate = mtdevice.find_baudrate(device)
-		if not baudrate:
-			rospy.logerr("Fatal: could not find proper baudrate.")
-			rospy.signal_shutdown("Could not find proper baudrate.")
-			return
+        rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
+        self.mt = mtdevice.MTDevice(device, baudrate, timeout)
 
-		rospy.loginfo("MT node interface: %s at %d bd."%(device, baudrate))
-		self.mt = mtdevice.MTDevice(device, baudrate, timeout)
+        self.frame_id = get_param('~frame_id', '/base_imu')
 
-		self.frame_id = get_param('~frame_id', '/base_imu')
+        self.frame_local = get_param('~frame_local', 'ENU')
 
-		frame_local     = get_param('~frame_local'    , 'ENU')
-		frame_local_imu = get_param('~frame_local_imu', 'ENU')
+        self.diag_msg = DiagnosticArray()
+        self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
+                                           message='No status information')
+        self.xkf_stat = DiagnosticStatus(name='mtnode: XKF Valid', level=1,
+                                         message='No status information')
+        self.gps_stat = DiagnosticStatus(name='mtnode: GPS Fix', level=1,
+                                         message='No status information')
+        self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
 
-		if   frame_local == 'ENU':
-			R = XSensDriver.ENU
-		elif frame_local == 'NED':
-			R = XSensDriver.NED
-		elif frame_local == 'NWU':
-			R = XSensDriver.NWU
+        # publishers created at first use to reduce topic clutter
+        self.diag_pub = None
+        self.imu_pub = None
+        self.gps_pub = None
+        self.xgps_pub = None
+        self.vel_pub = None
+        self.mag_pub = None
+        self.temp_pub = None
+        self.press_pub = None
+        self.analog_in1_pub = None  # decide type+header
+        self.analog_in2_pub = None  # decide type+header
+        self.ecef_pub = None
+        self.time_ref_pub = None
+        # TODO pressure, ITOW from raw GPS?
+        self.old_bGPS = 256  # publish GPS only if new
 
-		if   frame_local_imu == 'ENU':
-			R_IMU = XSensDriver.ENU
-		elif frame_local_imu == 'NED':
-			R_IMU = XSensDriver.NED
-		elif frame_local_imu == 'NWU':
-			R_IMU = XSensDriver.NWU
+        # publish a string version of all data; to be parsed by clients
+        self.str_pub = rospy.Publisher('imu_data_str', String, queue_size=10)
 
-		self.R = R.dot(R_IMU.transpose())
+    def reset_vars(self):
+        self.imu_msg = Imu()
+        self.imu_msg.orientation_covariance = (-1., )*9
+        self.imu_msg.angular_velocity_covariance = (-1., )*9
+        self.imu_msg.linear_acceleration_covariance = (-1., )*9
+        self.pub_imu = False
+        self.gps_msg = NavSatFix()
+        self.xgps_msg = GPSFix()
+        self.pub_gps = False
+        self.vel_msg = TwistStamped()
+        self.pub_vel = False
+        self.mag_msg = MagneticField()
+        self.mag_msg.magnetic_field_covariance = (0, )*9
+        self.pub_mag = False
+        self.temp_msg = Temperature()
+        self.temp_msg.variance = 0.
+        self.pub_temp = False
+        self.press_msg = FluidPressure()
+        self.press_msg.variance = 0.
+        self.pub_press = False
+        self.anin1_msg = UInt16()
+        self.pub_anin1 = False
+        self.anin2_msg = UInt16()
+        self.pub_anin2 = False
+        self.ecef_msg = PointStamped()
+        self.pub_ecef = False
+        self.pub_diag = False
 
-		self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=10)
-		self.diag_msg = DiagnosticArray()
-		self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
-				message='No status information')
-		self.xkf_stat = DiagnosticStatus(name='mtnode: XKF Valid', level=1,
-				message='No status information')
-		self.gps_stat = DiagnosticStatus(name='mtnode: GPS Fix', level=1,
-				message='No status information')
-		self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
+    def spin(self):
+        try:
+            while not rospy.is_shutdown():
+                self.spin_once()
+                self.reset_vars()
+        # Ctrl-C signal interferes with select with the ROS signal handler
+        # should be OSError in python 3.?
+        except select.error:
+            pass
 
-		self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
-		self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
-		self.xgps_pub = rospy.Publisher('fix_extended', GPSFix, queue_size=10)
-		self.vel_pub = rospy.Publisher('velocity', TwistStamped, queue_size=10)
-		self.mag_pub = rospy.Publisher('magnetic', Vector3Stamped, queue_size=10)
-		self.temp_pub = rospy.Publisher('temperature', Float32, queue_size=10)	# decide type
-		# TODO pressure, ITOW from raw GPS?
-		self.old_bGPS = 256	# publish GPS only if new
+    def spin_once(self):
+        '''Read data from device and publishes ROS messages.'''
+        def convert_coords(x, y, z, source, dest=self.frame_local):
+            """Convert the coordinates between ENU, NED, and NWU."""
+            if source == dest:
+                return x, y, z
+            # convert to ENU
+            if source == 'NED':
+                x, y, z = y, x, -z
+            elif source == 'NWU':
+                x, y, z = -y, x, z
+            # convert to desired
+            if dest == 'NED':
+                x, y, z = y, x, -z
+            elif dest == 'NWU':
+                x, y, z = y, -x, z
+            return x, y, z
 
+        def convert_quat(q, source, dest=self.frame_local):
+            """Convert a quaternion between ENU, NED, and NWU."""
+            def q_mult((w0, x0, y0, z0), (w1, x1, y1, z1)):
+                """Quaternion multiplication."""
+                w = w0*w1 - x0*x1 - y0*y1 - z0*z1
+                x = w0*x1 + x0*w1 + y0*z1 - z0*y1
+                y = w0*y1 - x0*z1 + y0*w1 + z0*x1
+                z = w0*z1 + x0*y1 - y0*x1 + z0*w1
+                return (w, x, y, z)
+            q_enu_ned = (0, 1./sqrt(2), 1./sqrt(2), 0)
+            q_enu_nwu = (1./sqrt(2), 0, 0, -1./sqrt(2))
+            q_ned_nwu = (0, -1, 0, 0)
+            q_ned_enu = (0, -1./sqrt(2), -1./sqrt(2), 0)
+            q_nwu_enu = (1./sqrt(2), 0, 0, 1./sqrt(2))
+            q_nwu_ned = (0, 1, 0, 0)
+            if source == 'ENU':
+                if dest == 'ENU':
+                    return q
+                elif dest == 'NED':
+                    return q_mult(q_enu_ned, q)
+                elif dest == 'NWU':
+                    return q_mult(q_enu_nwu, q)
+            elif source == 'NED':
+                if dest == 'ENU':
+                    return q_mult(q_ned_enu, q)
+                elif dest == 'NED':
+                    return q
+                elif dest == 'NWU':
+                    return q_mult(q_ned_nwu, q)
+            elif source == 'NWU':
+                if dest == 'ENU':
+                    return q_mult(q_nwu_enu, q)
+                elif dest == 'NED':
+                    return q_mult(q_nwu_ned, q)
+                elif dest == 'NWU':
+                    return q
 
+        def publish_time_ref(secs, nsecs, source):
+            """Publish a time reference."""
+            # Doesn't follow the standard publishing pattern since several time
+            # refs could be published simultaneously
+            if self.time_ref_pub is None:
+                self.time_ref_pub = rospy.Publisher(
+                    'time_reference', TimeReference, queue_size=10)
+            time_ref_msg = TimeReference()
+            time_ref_msg.header = self.h
+            time_ref_msg.time.secs = secs
+            time_ref_msg.time.nsecs = nsecs
+            time_ref_msg.source = source
+            self.time_ref_pub.publish(time_ref_msg)
 
-	def spin(self):
-		try:
-			while not rospy.is_shutdown():
-				self.spin_once()
-		# Ctrl-C signal interferes with select with the ROS signal handler
-		# should be OSError in python 3.?
-		except select.error:
-			pass
+        def stamp_from_itow(itow, y=None, m=None, d=None, ns=0):
+            """Return (secs, nsecs) from GPS time of week information."""
+            if y is None:
+                today = datetime.date.today()  # using today by default
+                stamp_day = datetime.datetime(today.year, today.month,
+                                              today.day)
+            else:
+                stamp_day = datetime.datetime(y, m, d)
+            iso_day = stamp_day.isoweekday()  # 1 for Monday, 7 for Sunday
+            # stamp for the GPS start of the week (Sunday morning)
+            start_of_week = stamp_day - datetime.timedelta(days=iso_day)
+            # stamp at the millisecond precision
+            stamp_ms = start_of_week + datetime.timedelta(milliseconds=itow)
+            secs = time.mktime((stamp_ms.year, stamp_ms.month, stamp_ms.day,
+                                stamp_ms.hour, stamp_ms.minute,
+                                stamp_ms.second, 0, 0, -1))
+            nsecs = stamp_ms.microsecond * 1000 + ns
+            if nsecs < 0:  # ns can be negative
+                secs -= 1
+                nsecs += 1e9
+            return (secs, nsecs)
 
-	def spin_once(self):
+        # MTData
+        def fill_from_RAW(raw_data):
+            '''Fill messages with information from 'raw' MTData block.'''
+            # don't publish raw imu data anymore
+            # TODO find what to do with that
+            rospy.loginfo("Got MTi data packet: 'RAW', ignored!")
 
-		def quat_from_orient(orient):
-			'''Build a quaternion from orientation data.'''
-			try:
-				w, x, y, z = orient['quaternion']
-				return (x, y, z, w)
-			except KeyError:
-				pass
-			try:
-				return quaternion_from_euler(pi*orient['roll']/180.,
-						pi*orient['pitch']/180, pi*orient['yaw']/180.)
-			except KeyError:
-				pass
-			try:
-				m = identity_matrix()
-				m[:3,:3] = orient['matrix']
-				return quaternion_from_matrix(m)
-			except KeyError:
-				pass
+        def fill_from_RAWGPS(rawgps_data):
+            '''Fill messages with information from 'rawgps' MTData block.'''
+            if rawgps_data['bGPS'] < self.old_bGPS:
+                self.pub_gps = True
+                # LLA
+                self.xgps_msg.latitude = self.gps_msg.latitude = \
+                    rawgps_data['LAT']*1e-7
+                self.xgps_msg.longitude = self.gps_msg.longitude = \
+                    rawgps_data['LON']*1e-7
+                self.xgps_msg.altitude = self.gps_msg.altitude = \
+                    rawgps_data['ALT']*1e-3
+                # NED vel # TODO?
+                # Accuracy
+                # 2 is there to go from std_dev to 95% interval
+                self.xgps_msg.err_horz = 2*rawgps_data['Hacc']*1e-3
+                self.xgps_msg.err_vert = 2*rawgps_data['Vacc']*1e-3
+            self.old_bGPS = rawgps_data['bGPS']
 
-		# get data
-		data = self.mt.read_measurement()
-		# common header
-		h = Header()
-		h.stamp = rospy.Time.now()
-		h.frame_id = self.frame_id
+        def fill_from_Temp(temp):
+            '''Fill messages with information from 'temperature' MTData block.
+            '''
+            self.pub_temp = True
+            self.temp_msg.temperature = temp
 
-		# get data (None if not present)
-		temp = data.get('Temp')	# float
-		raw_data = data.get('RAW')
-		imu_data = data.get('Calib')
-		orient_data = data.get('Orient')
-		velocity_data = data.get('Vel')
-		position_data = data.get('Pos')
-		rawgps_data = data.get('RAWGPS')
-		status = data.get('Stat')	# int
+        def fill_from_Calib(imu_data):
+            '''Fill messages with information from 'calibrated' MTData block.'''
+            try:
+                self.pub_imu = True
+                x, y, z = convert_coords(imu_data['gyrX'], imu_data['gyrY'],
+                                         imu_data['gyrZ'], o['frame'])
+                self.imu_msg.angular_velocity.x = x
+                self.imu_msg.angular_velocity.y = y
+                self.imu_msg.angular_velocity.z = z
+                self.imu_msg.angular_velocity_covariance = (
+                    radians(0.025), 0., 0.,
+                    0., radians(0.025), 0.,
+                    0., 0., radians(0.025))
+                self.pub_vel = True
+                self.vel_msg.twist.angular.x = x
+                self.vel_msg.twist.angular.y = y
+                self.vel_msg.twist.angular.z = z
+            except KeyError:
+                pass
+            try:
+                self.pub_imu = True
+                x, y, z = convert_coords(imu_data['accX'], imu_data['accY'],
+                                         imu_data['accZ'], o['frame'])
+                self.imu_msg.linear_acceleration.x = x
+                self.imu_msg.linear_acceleration.y = y
+                self.imu_msg.linear_acceleration.z = z
+                self.imu_msg.linear_acceleration_covariance = (0.0004, 0., 0.,
+                                                               0., 0.0004, 0.,
+                                                               0., 0., 0.0004)
+            except KeyError:
+                pass
+            try:
+                self.pub_mag = True
+                x, y, z = convert_coords(imu_data['magX'], imu_data['magY'],
+                                         imu_data['magZ'], o['frame'])
+                self.mag_msg.magnetic_field.x = x
+                self.mag_msg.magnetic_field.y = y
+                self.mag_msg.magnetic_field.z = z
+            except KeyError:
+                pass
 
-		# create messages and default values
-		imu_msg = Imu()
-		imu_msg.orientation_covariance = (-1., )*9
-		imu_msg.angular_velocity_covariance = (-1., )*9
-		imu_msg.linear_acceleration_covariance = (-1., )*9
-		pub_imu = False
-		gps_msg = NavSatFix()
-		xgps_msg = GPSFix()
-		pub_gps = False
-		vel_msg = TwistStamped()
-		pub_vel = False
-		mag_msg = Vector3Stamped()
-		pub_mag = False
-		temp_msg = Float32()
-		pub_temp = False
+        def fill_from_Orient(orient_data):
+            '''Fill messages with information from 'orientation' MTData block.
+            '''
+            self.pub_imu = True
+            if 'quaternion' in orient_data:
+                w, x, y, z = orient_data['quaternion']
+            elif 'roll' in orient_data:
+                x, y, z, w = quaternion_from_euler(
+                    radians(orient_data['roll']), radians(orient_data['pitch']),
+                    radians(orient_data['yaw']))
+            elif 'matrix' in orient_data:
+                m = identity_matrix()
+                m[:3, :3] = orient_data['matrix']
+                x, y, z, w = quaternion_from_matrix(m)
+            self.imu_msg.orientation.x = x
+            self.imu_msg.orientation.y = y
+            self.imu_msg.orientation.z = z
+            self.imu_msg.orientation.w = w
+            self.imu_msg.orientation_covariance = (radians(1.), 0., 0.,
+                                                   0., radians(1.), 0.,
+                                                   0., 0., radians(9.))
 
-		# fill information where it's due
-		# start by raw information that can be overriden
-		if raw_data: # TODO warn about data not calibrated
-			pub_imu = True
-			pub_vel = True
-			pub_mag = True
-			pub_temp = True
-			# acceleration
-			imu_msg.linear_acceleration.x = raw_data['accX']
-			imu_msg.linear_acceleration.y = raw_data['accY']
-			imu_msg.linear_acceleration.z = raw_data['accZ']
-			imu_msg.linear_acceleration_covariance = (0., )*9
-			# gyroscopes
-			imu_msg.angular_velocity.x = raw_data['gyrX']
-			imu_msg.angular_velocity.y = raw_data['gyrY']
-			imu_msg.angular_velocity.z = raw_data['gyrZ']
-			imu_msg.angular_velocity_covariance = (0., )*9
-			vel_msg.twist.angular.x = raw_data['gyrX']
-			vel_msg.twist.angular.y = raw_data['gyrY']
-			vel_msg.twist.angular.z = raw_data['gyrZ']
-			# magnetometer
-			mag_msg.vector.x = raw_data['magX']
-			mag_msg.vector.y = raw_data['magY']
-			mag_msg.vector.z = raw_data['magZ']
-			# temperature
-			# 2-complement decoding and 1/256 resolution
-			x = raw_data['temp']
-			if x&0x8000:
-				temp_msg.data = (x - 1<<16)/256.
-			else:
-				temp_msg.data = x/256.
-		if rawgps_data:
-			if rawgps_data['bGPS']<self.old_bGPS:
-				pub_gps = True
-				# LLA
-				xgps_msg.latitude = gps_msg.latitude = rawgps_data['LAT']*1e-7
-				xgps_msg.longitude = gps_msg.longitude = rawgps_data['LON']*1e-7
-				xgps_msg.altitude = gps_msg.altitude = rawgps_data['ALT']*1e-3
-				# NED vel # TODO?
-				# Accuracy
-				# 2 is there to go from std_dev to 95% interval
-				xgps_msg.err_horz = 2*rawgps_data['Hacc']*1e-3
-				xgps_msg.err_vert = 2*rawgps_data['Vacc']*1e-3
-			self.old_bGPS = rawgps_data['bGPS']
-		if temp is not None:
-			pub_temp = True
-			temp_msg.data = temp
-		if imu_data:
-			try:
-				x = imu_data['gyrX']
-				y = imu_data['gyrY']
-				z = imu_data['gyrZ']
+        def fill_from_Auxiliary(aux_data):
+            '''Fill messages with information from 'Auxiliary' MTData block.'''
+            try:
+                self.anin1_msg.data = o['Ain_1']
+                self.pub_anin1 = True
+            except KeyError:
+                pass
+            try:
+                self.anin2_msg.data = o['Ain_2']
+                self.pub_anin2 = True
+            except KeyError:
+                pass
 
-				v = numpy.array([x, y, z])
-				v = v.dot(self.R)
+        def fill_from_Pos(position_data):
+            '''Fill messages with information from 'position' MTData block.'''
+            self.pub_gps = True
+            self.xgps_msg.latitude = self.gps_msg.latitude = \
+                position_data['Lat']
+            self.xgps_msg.longitude = self.gps_msg.longitude = \
+                position_data['Lon']
+            self.xgps_msg.altitude = self.gps_msg.altitude = \
+                position_data['Alt']
 
-				imu_msg.angular_velocity.x = v[0]
-				imu_msg.angular_velocity.y = v[1]
-				imu_msg.angular_velocity.z = v[2]
-				imu_msg.angular_velocity_covariance = (radians(0.025), 0., 0., 0.,
-						radians(0.025), 0., 0., 0., radians(0.025))
-				pub_imu = True
-				vel_msg.twist.angular.x = v[0]
-				vel_msg.twist.angular.y = v[1]
-				vel_msg.twist.angular.z = v[2]
-				pub_vel = True
-			except KeyError:
-				pass
-			try:
-				x = imu_data['accX']
-				y = imu_data['accY']
-				z = imu_data['accZ']
+        def fill_from_Vel(velocity_data):
+            '''Fill messages with information from 'velocity' MTData block.'''
+            self.pub_vel = True
+            x, y, z = convert_coords(
+                velocity_data['Vel_X'], velocity_data['Vel_Y'],
+                velocity_data['Vel_Z'], o['frame'])
+            self.vel_msg.twist.linear.x = x
+            self.vel_msg.twist.linear.y = y
+            self.vel_msg.twist.linear.z = z
 
-				v = numpy.array([x, y, z])
-				v = v.dot(self.R)
+        def fill_from_Stat(status):
+            '''Fill messages with information from 'status' MTData block.'''
+            self.pub_diag = True
+            if status & 0b0001:
+                self.stest_stat.level = DiagnosticStatus.OK
+                self.stest_stat.message = "Ok"
+            else:
+                self.stest_stat.level = DiagnosticStatus.ERROR
+                self.stest_stat.message = "Failed"
+            if status & 0b0010:
+                self.xkf_stat.level = DiagnosticStatus.OK
+                self.xkf_stat.message = "Valid"
+            else:
+                self.xkf_stat.level = DiagnosticStatus.WARN
+                self.xkf_stat.message = "Invalid"
+            if status & 0b0100:
+                self.gps_stat.level = DiagnosticStatus.OK
+                self.gps_stat.message = "Ok"
+                self.gps_msg.status.status = NavSatStatus.STATUS_FIX
+                self.xgps_msg.status.status = GPSStatus.STATUS_FIX
+                self.gps_msg.status.service = NavSatStatus.SERVICE_GPS
+                self.xgps_msg.status.position_source = 0b01101001
+                self.xgps_msg.status.motion_source = 0b01101010
+                self.xgps_msg.status.orientation_source = 0b01101010
+            else:
+                self.gps_stat.level = DiagnosticStatus.WARN
+                self.gps_stat.message = "No fix"
+                self.gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
+                self.xgps_msg.status.status = GPSStatus.STATUS_NO_FIX
+                self.gps_msg.status.service = 0
+                self.xgps_msg.status.position_source = 0b01101000
+                self.xgps_msg.status.motion_source = 0b01101000
+                self.xgps_msg.status.orientation_source = 0b01101000
 
-				imu_msg.linear_acceleration.x = v[0]
-				imu_msg.linear_acceleration.y = v[1]
-				imu_msg.linear_acceleration.z = v[2]
-				imu_msg.linear_acceleration_covariance = (0.0004, 0., 0., 0.,
-						0.0004, 0., 0., 0., 0.0004)
-				pub_imu = True
-			except KeyError:
-				pass
-			try:
-				x = imu_data['magX']
-				y = imu_data['magY']
-				z = imu_data['magZ']
+        def fill_from_Sample(ts):
+            '''Catch 'Sample' MTData blocks.'''
+            self.h.seq = ts
 
-				v = numpy.array([x, y, z])
-				v = v.dot(self.R)
+        # MTData2
+        def fill_from_Temperature(o):
+            '''Fill messages with information from 'Temperature' MTData2 block.
+            '''
+            self.pub_temp = True
+            self.temp_msg.temperature = o['Temp']
 
-				mag_msg.vector.x = v[0]
-				mag_msg.vector.y = v[1]
-				mag_msg.vector.z = v[2]
-				pub_mag = True
-			except KeyError:
-				pass
-		if velocity_data:
-			pub_vel = True
-			vel_msg.twist.linear.x = velocity_data['Vel_X']
-			vel_msg.twist.linear.y = velocity_data['Vel_Y']
-			vel_msg.twist.linear.z = velocity_data['Vel_Z']
-		if orient_data:
-			pub_imu = True
-			orient_quat = quat_from_orient(orient_data)
-			imu_msg.orientation.x = orient_quat[0]
-			imu_msg.orientation.y = orient_quat[1]
-			imu_msg.orientation.z = orient_quat[2]
-			imu_msg.orientation.w = orient_quat[3]
-			imu_msg.orientation_covariance = (radians(1.), 0., 0., 0.,
-					radians(1.), 0., 0., 0., radians(9.))
-		if position_data:
-			pub_gps = True
-			xgps_msg.latitude = gps_msg.latitude = position_data['Lat']
-			xgps_msg.longitude = gps_msg.longitude = position_data['Lon']
-			xgps_msg.altitude = gps_msg.altitude = position_data['Alt']
-		if status is not None:
-			if status & 0b0001:
-				self.stest_stat.level = DiagnosticStatus.OK
-				self.stest_stat.message = "Ok"
-			else:
-				self.stest_stat.level = DiagnosticStatus.ERROR
-				self.stest_stat.message = "Failed"
-			if status & 0b0010:
-				self.xkf_stat.level = DiagnosticStatus.OK
-				self.xkf_stat.message = "Valid"
-			else:
-				self.xkf_stat.level = DiagnosticStatus.WARN
-				self.xkf_stat.message = "Invalid"
-			if status & 0b0100:
-				self.gps_stat.level = DiagnosticStatus.OK
-				self.gps_stat.message = "Ok"
-			else:
-				self.gps_stat.level = DiagnosticStatus.WARN
-				self.gps_stat.message = "No fix"
-			self.diag_msg.header = h
-			self.diag_pub.publish(self.diag_msg)
+        def fill_from_Timestamp(o):
+            '''Fill messages with information from 'Timestamp' MTData2 block.'''
+            try:
+                # put timestamp from gps UTC time if available
+                y, m, d, hr, mi, s, ns, f = o['Year'], o['Month'], o['Day'],\
+                    o['Hour'], o['Minute'], o['Second'], o['ns'], o['Flags']
+                if f & 0x4:
+                    secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
+                    self.h.stamp.secs = secs
+                    self.h.stamp.nsecs = ns
+            except KeyError:
+                pass
+            # TODO find what to do with other kind of information
+            pass
 
-			if pub_gps:
-				if status & 0b0100:
-					gps_msg.status.status = NavSatStatus.STATUS_FIX
-					xgps_msg.status.status = GPSStatus.STATUS_FIX
-					gps_msg.status.service = NavSatStatus.SERVICE_GPS
-					xgps_msg.status.position_source = 0b01101001
-					xgps_msg.status.motion_source = 0b01101010
-					xgps_msg.status.orientation_source = 0b01101010
-				else:
-					gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
-					xgps_msg.status.status = GPSStatus.STATUS_NO_FIX
-					gps_msg.status.service = 0
-					xgps_msg.status.position_source = 0b01101000
-					xgps_msg.status.motion_source = 0b01101000
-					xgps_msg.status.orientation_source = 0b01101000
-		# publish available information
-		if pub_imu:
-			imu_msg.header = h
-			self.imu_pub.publish(imu_msg)
-		if pub_gps:
-			xgps_msg.header = gps_msg.header = h
-			self.gps_pub.publish(gps_msg)
-			self.xgps_pub.publish(xgps_msg)
-		if pub_vel:
-			vel_msg.header = h
-			self.vel_pub.publish(vel_msg)
-		if pub_mag:
-			mag_msg.header = h
-			self.mag_pub.publish(mag_msg)
-		if pub_temp:
-			self.temp_pub.publish(temp_msg)
+        def fill_from_Orientation_Data(o):
+            '''Fill messages with information from 'Orientation Data' MTData2
+            block.'''
+            self.pub_imu = True
+            try:
+                x, y, z, w = o['Q1'], o['Q2'], o['Q3'], o['Q0']
+            except KeyError:
+                pass
+            try:
+                x, y, z, w = quaternion_from_euler(radians(o['Roll']),
+                                                   radians(o['Pitch']),
+                                                   radians(o['Yaw']))
+            except KeyError:
+                pass
+            try:
+                a, b, c, d, e, f, g, h, i = o['a'], o['b'], o['c'], o['d'],\
+                    o['e'], o['f'], o['g'], o['h'], o['i']
+                m = identity_matrix()
+                m[:3, :3] = ((a, b, c), (d, e, f), (g, h, i))
+                x, y, z, w = quaternion_from_matrix(m)
+            except KeyError:
+                pass
+            w, x, y, z = convert_quat((w, x, y, z), o['frame'])
+            self.imu_msg.orientation.x = x
+            self.imu_msg.orientation.y = y
+            self.imu_msg.orientation.z = z
+            self.imu_msg.orientation.w = w
+            self.imu_msg.orientation_covariance = (radians(1.), 0., 0.,
+                                                   0., radians(1.), 0.,
+                                                   0., 0., radians(9.))
 
+        def fill_from_Pressure(o):
+            '''Fill messages with information from 'Pressure' MTData2 block.'''
+            self.press_msg.fluid_pressure = o['Pressure']
+
+        def fill_from_Acceleration(o):
+            '''Fill messages with information from 'Acceleration' MTData2
+            block.'''
+            self.pub_imu = True
+
+            # FIXME not sure we should treat all in that same way
+            try:
+                x, y, z = o['Delta v.x'], o['Delta v.y'], o['Delta v.z']
+            except KeyError:
+                pass
+            try:
+                x, y, z = o['freeAccX'], o['freeAccY'], o['freeAccZ']
+            except KeyError:
+                pass
+            try:
+                x, y, z = o['accX'], o['accY'], o['accZ']
+            except KeyError:
+                pass
+            x, y, z = convert_coords(x, y, z, o['frame'])
+            self.imu_msg.linear_acceleration.x = x
+            self.imu_msg.linear_acceleration.y = y
+            self.imu_msg.linear_acceleration.z = z
+            self.imu_msg.linear_acceleration_covariance = (0.0004, 0., 0.,
+                                                           0., 0.0004, 0.,
+                                                           0., 0., 0.0004)
+
+        def fill_from_Position(o):
+            '''Fill messages with information from 'Position' MTData2 block.'''
+            try:
+                self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
+                self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
+                self.pub_gps = True
+                alt = o.get('altMsl', o.get('altEllipsoid', 0))
+                self.xgps_msg.altitude = self.gps_msg.altitude = alt
+            except KeyError:
+                pass
+            try:
+                x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
+                # TODO: ecef units not specified: might not be in meters!
+                self.ecef_msg.point.x = x
+                self.ecef_msg.point.y = y
+                self.ecef_msg.point.z = z
+                self.pub_ecef = True
+            except KeyError:
+                pass
+
+        def fill_from_GNSS(o):
+            '''Fill messages with information from 'GNSS' MTData2 block.'''
+            try:  # PVT
+                # time block
+                itow, y, m, d, ns, f = o['itow'], o['year'], o['month'],\
+                    o['day'], o['nano'], o['valid']
+                if f & 0x4:
+                    secs, nsecs = stamp_from_itow(itow, y, m, d, ns)
+                    publish_time_ref(secs, nsecs, 'GNSS time UTC')
+                # flags
+                fixtype = o['fixtype']
+                if fixtype == 0x00:
+                    self.gps_msg.status = -1  # no fix
+                else:
+                    self.gps_msg.status = 0  # unaugmented fix
+                # lat lon alt
+                self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
+                self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
+                self.xgps_msg.altitude = self.gps_msg.altitude = o['height']/1e3
+                self.pub_gps = True
+                # TODO velocity?
+                # TODO 2D heading?
+                # DOP block
+                self.xgps_msg.gdop = o['gdop']
+                self.xgps_msg.pdop = o['pdop']
+                self.xgps_msg.hdop = o['hdop']
+                self.xgps_msg.vdop = o['vdop']
+                self.xgps_msg.tdop = o['tdop']
+            except KeyError:
+                pass
+            # TODO publish Sat Info
+
+        def fill_from_Angular_Velocity(o):
+            '''Fill messages with information from 'Angular Velocity' MTData2
+            block.'''
+            try:
+                x, y, z = convert_coords(o['gyrX'], o['gyrY'], o['gyrZ'],
+                                         o['frame'])
+                self.imu_msg.angular_velocity.x = x
+                self.imu_msg.angular_velocity.y = y
+                self.imu_msg.angular_velocity.z = z
+                self.imu_msg.angular_velocity_covariance = (
+                    radians(0.025), 0., 0.,
+                    0., radians(0.025), 0.,
+                    0., 0., radians(0.025))
+                self.pub_imu = True
+                self.vel_msg.twist.angular.x = x
+                self.vel_msg.twist.angular.y = y
+                self.vel_msg.twist.angular.z = z
+                self.pub_vel = True
+            except KeyError:
+                pass
+            # TODO decide what to do with 'Delta q'
+
+        def fill_from_GPS(o):
+            '''Fill messages with information from 'GPS' MTData2 block.'''
+            try:    # DOP
+                self.xgps_msg.gdop = o['gDOP']
+                self.xgps_msg.pdop = o['pDOP']
+                self.xgps_msg.hdop = o['hDOP']
+                self.xgps_msg.vdop = o['vDOP']
+                self.xgps_msg.tdop = o['tDOP']
+                self.pub_gps = True
+            except KeyError:
+                pass
+            try:    # SOL
+                x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
+                self.ecef_msg.point.x = x * 0.01  # data is in cm
+                self.ecef_msg.point.y = y * 0.01
+                self.ecef_msg.point.z = z * 0.01
+                self.pub_ecef = True
+                vx, vy, vz = o['ecefVX'], o['ecefVY'], o['ecefVZ']
+                self.vel_msg.twist.linear.x = vx * 0.01  # data is in cm
+                self.vel_msg.twist.linear.y = vy * 0.01
+                self.vel_msg.twist.linear.z = vz * 0.01
+                self.pub_vel = True
+                # TODO there are other pieces of information that we could
+                # publish
+            except KeyError:
+                pass
+            try:    # Time UTC
+                itow, y, m, d, ns, f = o['iTOW'], o['year'], o['month'],\
+                    o['day'], o['nano'], o['valid']
+                if f & 0x4:
+                    secs, nsecs = stamp_from_itow(itow, y, m, d, ns)
+                    publish_time_ref(secs, nsecs, 'GPS Time UTC')
+            except KeyError:
+                pass
+            # TODO publish SV Info
+
+        def fill_from_SCR(o):
+            '''Fill messages with information from 'SCR' MTData2 block.'''
+            # TODO that's raw information
+            pass
+
+        def fill_from_Analog_In(o):
+            '''Fill messages with information from 'Analog In' MTData2 block.'''
+            try:
+                self.anin1_msg.data = o['analogIn1']
+                self.pub_anin1 = True
+            except KeyError:
+                pass
+            try:
+                self.anin2_msg.data = o['analogIn2']
+                self.pub_anin2 = True
+            except KeyError:
+                pass
+
+        def fill_from_Magnetic(o):
+            '''Fill messages with information from 'Magnetic' MTData2 block.'''
+            x, y, z = convert_coords(o['magX'], o['magY'], o['magZ'],
+                                     o['frame'])
+            self.mag_msg.magnetic_field.x = x
+            self.mag_msg.magnetic_field.y = y
+            self.mag_msg.magnetic_field.z = z
+            self.pub_mag = True
+
+        def fill_from_Velocity(o):
+            '''Fill messages with information from 'Velocity' MTData2 block.'''
+            x, y, z = convert_coords(o['velX'], o['velY'], o['velZ'],
+                                     o['frame'])
+            self.vel_msg.twist.linear.x = x
+            self.vel_msg.twist.linear.y = y
+            self.vel_msg.twist.linear.z = z
+            self.pub_vel = True
+
+        def fill_from_Status(o):
+            '''Fill messages with information from 'Status' MTData2 block.'''
+            try:
+                status = o['StatusByte']
+                fill_from_Stat(status)
+            except KeyError:
+                pass
+            try:
+                status = o['StatusWord']
+                fill_from_Stat(status)
+            except KeyError:
+                pass
+            # TODO RSSI
+
+        def find_handler_name(name):
+            return "fill_from_%s" % (name.replace(" ", "_"))
+
+        # get data
+        try:
+            data = self.mt.read_measurement()
+        except mtdef.MTTimeoutException:
+            time.sleep(0.1)
+            return
+        # common header
+        self.h = Header()
+        self.h.stamp = rospy.Time.now()
+        self.h.frame_id = self.frame_id
+
+        # set default values
+        self.reset_vars()
+
+        # fill messages based on available data fields
+        for n, o in data.items():
+            try:
+                locals()[find_handler_name(n)](o)
+            except KeyError:
+                rospy.logwarn("Unknown MTi data packet: '%s', ignoring." % n)
+
+        # publish available information
+        if self.pub_imu:
+            self.imu_msg.header = self.h
+            if self.imu_pub is None:
+                self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
+            self.imu_pub.publish(self.imu_msg)
+        if self.pub_gps:
+            self.xgps_msg.header = self.gps_msg.header = self.h
+            if self.gps_pub is None:
+                self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
+                self.xgps_pub = rospy.Publisher('fix_extended', GPSFix,
+                                                queue_size=10)
+            self.gps_pub.publish(self.gps_msg)
+            self.xgps_pub.publish(self.xgps_msg)
+        if self.pub_vel:
+            self.vel_msg.header = self.h
+            if self.vel_pub is None:
+                self.vel_pub = rospy.Publisher('velocity', TwistStamped,
+                                               queue_size=10)
+            self.vel_pub.publish(self.vel_msg)
+        if self.pub_mag:
+            self.mag_msg.header = self.h
+            if self.mag_pub is None:
+                self.mag_pub = rospy.Publisher('imu/mag', MagneticField,
+                                               queue_size=10)
+            self.mag_pub.publish(self.mag_msg)
+        if self.pub_temp:
+            self.temp_msg.header = self.h
+            if self.temp_pub is None:
+                self.temp_pub = rospy.Publisher('temperature', Temperature,
+                                                queue_size=10)
+            self.temp_pub.publish(self.temp_msg)
+        if self.pub_press:
+            self.press_msg.header = self.h
+            if self.press_pub is None:
+                self.press_pub = rospy.Publisher('pressure', FluidPressure,
+                                                 queue_size=10)
+            self.press_pub.publish(self.press_msg)
+        if self.pub_anin1:
+            if self.pub_analog_in1_pub is None:
+                self.analog_in1_pub = rospy.Publisher('analog_in1',
+                                                      UInt16, queue_size=10)
+            self.analog_in1_pub.publish(self.anin1_msg)
+        if self.pub_anin2:
+            if self.pub_analog_in2_pub is None:
+                self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
+                                                      queue_size=10)
+            self.analog_in2_pub.publish(self.anin2_msg)
+        if self.pub_ecef:
+            self.ecef_msg.header = self.h
+            if self.ecef_pub is None:
+                self.ecef_pub = rospy.Publisher('ecef', PointStamped,
+                                                queue_size=10)
+            self.ecef_pub.publish(self.ecef_msg)
+        if self.pub_diag:
+            self.diag_msg.header = self.h
+            if self.diag_pub is None:
+                self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray,
+                                                queue_size=10)
+            self.diag_pub.publish(self.diag_msg)
+        # publish string representation
+        self.str_pub.publish(str(data))
 
 
 def main():
-	'''Create a ROS node and instantiate the class.'''
-	rospy.init_node('xsens_driver')
-	driver = XSensDriver()
-	driver.spin()
+    '''Create a ROS node and instantiate the class.'''
+    rospy.init_node('xsens_driver')
+    driver = XSensDriver()
+    driver.spin()
 
 
-if __name__== '__main__':
-	main()
-
-
+if __name__ == '__main__':
+    main()

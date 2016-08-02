@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.0 (2016-08-02)
+------------------
 * support of mark iv devices (configuration and ROS node)
 * remove gps_common dependency (for jade and kinetic)
 * work in 16.04 with pyserial3

@@ -2,6 +2,16 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* support of mark iv devices (configuration and ROS node)
+* remove gps_common dependency (for jade and kinetic)
+* work in 16.04 with pyserial3
+* proper message types for temperature, pressure, magnetic field and time
+* better timeout management
+* various bug fixes
+* Contributors: CTU robot, Francis Colas, João Sousa, Konstantinos Chatzilygeroudis, Latitude OBC, Vincent Rousseau, fcolas, jotaemesousa
+
 1.0.3 (2014-05-14)
 ------------------
 * Inclusion of launch file

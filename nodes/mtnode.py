@@ -10,7 +10,6 @@ from std_msgs.msg import Header, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
     FluidPressure, Temperature, TimeReference
 from geometry_msgs.msg import TwistStamped, PointStamped
-from gps_common.msg import GPSFix, GPSStatus
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
 import datetime
@@ -76,7 +75,6 @@ class XSensDriver(object):
         self.diag_pub = None
         self.imu_pub = None
         self.gps_pub = None
-        self.xgps_pub = None
         self.vel_pub = None
         self.mag_pub = None
         self.temp_pub = None
@@ -98,7 +96,6 @@ class XSensDriver(object):
         self.imu_msg.linear_acceleration_covariance = (-1., )*9
         self.pub_imu = False
         self.gps_msg = NavSatFix()
-        self.xgps_msg = GPSFix()
         self.pub_gps = False
         self.vel_msg = TwistStamped()
         self.pub_vel = False
@@ -198,14 +195,17 @@ class XSensDriver(object):
             time_ref_msg.source = source
             self.time_ref_pub.publish(time_ref_msg)
 
-        def stamp_from_itow(itow, y=None, m=None, d=None, ns=0):
-            """Return (secs, nsecs) from GPS time of week information."""
-            if y is None:
+        def stamp_from_itow(itow, y=None, m=None, d=None, ns=0, week=None):
+            """Return (secs, nsecs) from GPS time of week ms information."""
+            if y is not None:
+                stamp_day = datetime.datetime(y, m, d)
+            elif week is not None:
+                epoch = datetime.datetime(1980, 1, 6)  # GPS epoch
+                stamp_day = epoch + datetime.timedelta(weeks=week)
+            else:
                 today = datetime.date.today()  # using today by default
                 stamp_day = datetime.datetime(today.year, today.month,
                                               today.day)
-            else:
-                stamp_day = datetime.datetime(y, m, d)
             iso_day = stamp_day.isoweekday()  # 1 for Monday, 7 for Sunday
             # stamp for the GPS start of the week (Sunday morning)
             start_of_week = stamp_day - datetime.timedelta(days=iso_day)
@@ -232,17 +232,10 @@ class XSensDriver(object):
             if rawgps_data['bGPS'] < self.old_bGPS:
                 self.pub_gps = True
                 # LLA
-                self.xgps_msg.latitude = self.gps_msg.latitude = \
-                    rawgps_data['LAT']*1e-7
-                self.xgps_msg.longitude = self.gps_msg.longitude = \
-                    rawgps_data['LON']*1e-7
-                self.xgps_msg.altitude = self.gps_msg.altitude = \
-                    rawgps_data['ALT']*1e-3
+                self.gps_msg.latitude = rawgps_data['LAT']*1e-7
+                self.gps_msg.longitude = rawgps_data['LON']*1e-7
+                self.gps_msg.altitude = rawgps_data['ALT']*1e-3
                 # NED vel # TODO?
-                # Accuracy
-                # 2 is there to go from std_dev to 95% interval
-                self.xgps_msg.err_horz = 2*rawgps_data['Hacc']*1e-3
-                self.xgps_msg.err_vert = 2*rawgps_data['Vacc']*1e-3
             self.old_bGPS = rawgps_data['bGPS']
 
         def fill_from_Temp(temp):
@@ -330,12 +323,9 @@ class XSensDriver(object):
         def fill_from_Pos(position_data):
             '''Fill messages with information from 'position' MTData block.'''
             self.pub_gps = True
-            self.xgps_msg.latitude = self.gps_msg.latitude = \
-                position_data['Lat']
-            self.xgps_msg.longitude = self.gps_msg.longitude = \
-                position_data['Lon']
-            self.xgps_msg.altitude = self.gps_msg.altitude = \
-                position_data['Alt']
+            self.gps_msg.latitude = position_data['Lat']
+            self.gps_msg.longitude = position_data['Lon']
+            self.gps_msg.altitude = position_data['Alt']
 
         def fill_from_Vel(velocity_data):
             '''Fill messages with information from 'velocity' MTData block.'''
@@ -366,20 +356,12 @@ class XSensDriver(object):
                 self.gps_stat.level = DiagnosticStatus.OK
                 self.gps_stat.message = "Ok"
                 self.gps_msg.status.status = NavSatStatus.STATUS_FIX
-                self.xgps_msg.status.status = GPSStatus.STATUS_FIX
                 self.gps_msg.status.service = NavSatStatus.SERVICE_GPS
-                self.xgps_msg.status.position_source = 0b01101001
-                self.xgps_msg.status.motion_source = 0b01101010
-                self.xgps_msg.status.orientation_source = 0b01101010
             else:
                 self.gps_stat.level = DiagnosticStatus.WARN
                 self.gps_stat.message = "No fix"
                 self.gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
-                self.xgps_msg.status.status = GPSStatus.STATUS_NO_FIX
                 self.gps_msg.status.service = 0
-                self.xgps_msg.status.position_source = 0b01101000
-                self.xgps_msg.status.motion_source = 0b01101000
-                self.xgps_msg.status.orientation_source = 0b01101000
 
         def fill_from_Sample(ts):
             '''Catch 'Sample' MTData blocks.'''
@@ -400,8 +382,25 @@ class XSensDriver(object):
                     o['Hour'], o['Minute'], o['Second'], o['ns'], o['Flags']
                 if f & 0x4:
                     secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
-                    self.h.stamp.secs = secs
-                    self.h.stamp.nsecs = ns
+                    publish_time_ref(secs, ns, 'UTC time')
+            except KeyError:
+                pass
+            try:
+                itow = o['TimeOfWeek']
+                secs, nsecs = stamp_from_itow(itow)
+                publish_time_ref(secs, nsecs, 'integer time of week')
+            except KeyError:
+                pass
+            try:
+                sample_time_fine = o['SampleTimeFine']
+                secs = int(sample_time_fine / 1000)
+                nsecs = 1e6 * (sample_time_fine % 1000)
+                publish_time_ref(secs, nsecs, 'sample time fine')
+            except KeyError:
+                pass
+            try:
+                sample_time_coarse = o['SampleTimeCoarse']
+                publish_time_ref(sample_time_coarse, 0, 'sample time coarse')
             except KeyError:
                 pass
             # TODO find what to do with other kind of information
@@ -441,6 +440,7 @@ class XSensDriver(object):
         def fill_from_Pressure(o):
             '''Fill messages with information from 'Pressure' MTData2 block.'''
             self.press_msg.fluid_pressure = o['Pressure']
+            self.pub_press = True
 
         def fill_from_Acceleration(o):
             '''Fill messages with information from 'Acceleration' MTData2
@@ -471,11 +471,12 @@ class XSensDriver(object):
         def fill_from_Position(o):
             '''Fill messages with information from 'Position' MTData2 block.'''
             try:
-                self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
-                self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
+                self.gps_msg.latitude = o['lat']
+                self.gps_msg.longitude = o['lon']
                 self.pub_gps = True
-                alt = o.get('altMsl', o.get('altEllipsoid', 0))
-                self.xgps_msg.altitude = self.gps_msg.altitude = alt
+                # altMsl is deprecated
+                alt = o.get('altEllipsoid', o.get('altMsl', 0))
+                self.gps_msg.altitude = alt
             except KeyError:
                 pass
             try:
@@ -500,22 +501,19 @@ class XSensDriver(object):
                 # flags
                 fixtype = o['fixtype']
                 if fixtype == 0x00:
-                    self.gps_msg.status = -1  # no fix
+                    self.gps_msg.status = NavSatStatus.STATUS_NO_FIX  # no fix
+                    self.gps_msg.status.service = 0
                 else:
-                    self.gps_msg.status = 0  # unaugmented fix
+                    self.gps_msg.status = NavSatStatus.STATUS_FIX  # unaugmented
+                    self.gps_msg.status.service = NavSatStatus.SERVICE_GPS
                 # lat lon alt
-                self.xgps_msg.latitude = self.gps_msg.latitude = o['lat']
-                self.xgps_msg.longitude = self.gps_msg.longitude = o['lon']
-                self.xgps_msg.altitude = self.gps_msg.altitude = o['height']/1e3
+                self.gps_msg.latitude = o['lat']
+                self.gps_msg.longitude = o['lon']
+                self.gps_msg.altitude = o['height']/1e3
                 self.pub_gps = True
                 # TODO velocity?
                 # TODO 2D heading?
-                # DOP block
-                self.xgps_msg.gdop = o['gdop']
-                self.xgps_msg.pdop = o['pdop']
-                self.xgps_msg.hdop = o['hdop']
-                self.xgps_msg.vdop = o['vdop']
-                self.xgps_msg.tdop = o['tdop']
+                # TODO DOP?
             except KeyError:
                 pass
             # TODO publish Sat Info
@@ -544,15 +542,7 @@ class XSensDriver(object):
 
         def fill_from_GPS(o):
             '''Fill messages with information from 'GPS' MTData2 block.'''
-            try:    # DOP
-                self.xgps_msg.gdop = o['gDOP']
-                self.xgps_msg.pdop = o['pDOP']
-                self.xgps_msg.hdop = o['hDOP']
-                self.xgps_msg.vdop = o['vDOP']
-                self.xgps_msg.tdop = o['tDOP']
-                self.pub_gps = True
-            except KeyError:
-                pass
+            # TODO DOP
             try:    # SOL
                 x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
                 self.ecef_msg.point.x = x * 0.01  # data is in cm
@@ -564,6 +554,10 @@ class XSensDriver(object):
                 self.vel_msg.twist.linear.y = vy * 0.01
                 self.vel_msg.twist.linear.z = vz * 0.01
                 self.pub_vel = True
+                itow, ns, week, f = o['iTOW'], o['fTOW'], o['Week'], o['Flags']
+                if (f & 0x0C) == 0xC:
+                    secs, nsecs = stamp_from_itow(itow, ns=ns, week=week)
+                    publish_time_ref(secs, nsecs, 'GPS Time')
                 # TODO there are other pieces of information that we could
                 # publish
             except KeyError:
@@ -626,7 +620,6 @@ class XSensDriver(object):
                 fill_from_Stat(status)
             except KeyError:
                 pass
-            # TODO RSSI
 
         def find_handler_name(name):
             return "fill_from_%s" % (name.replace(" ", "_"))
@@ -659,13 +652,10 @@ class XSensDriver(object):
                 self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
             self.imu_pub.publish(self.imu_msg)
         if self.pub_gps:
-            self.xgps_msg.header = self.gps_msg.header = self.h
+            self.gps_msg.header = self.h
             if self.gps_pub is None:
                 self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
-                self.xgps_pub = rospy.Publisher('fix_extended', GPSFix,
-                                                queue_size=10)
             self.gps_pub.publish(self.gps_msg)
-            self.xgps_pub.publish(self.xgps_msg)
         if self.pub_vel:
             self.vel_msg.header = self.h
             if self.vel_pub is None:

@@ -5,7 +5,7 @@ project(xsens_driver)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  rospy std_msgs tf sensor_msgs geometry_msgs gps_common diagnostic_msgs
+  rospy std_msgs tf sensor_msgs geometry_msgs diagnostic_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -80,7 +80,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES test_py
-  CATKIN_DEPENDS rospy std_msgs tf sensor_msgs geometry_msgs gps_common diagnostic_msgs
+  CATKIN_DEPENDS rospy std_msgs tf sensor_msgs geometry_msgs diagnostic_msgs
 #  DEPENDS system_lib
 )
 

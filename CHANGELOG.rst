@@ -2,6 +2,11 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix TimeReference member name
+* Contributors: Francis Colas
+
 2.0.0 (2016-08-02)
 ------------------
 * support of mark iv devices (configuration and ROS node)

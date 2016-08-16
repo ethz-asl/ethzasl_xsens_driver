@@ -190,8 +190,8 @@ class XSensDriver(object):
                     'time_reference', TimeReference, queue_size=10)
             time_ref_msg = TimeReference()
             time_ref_msg.header = self.h
-            time_ref_msg.time.secs = secs
-            time_ref_msg.time.nsecs = nsecs
+            time_ref_msg.time_ref.secs = secs
+            time_ref_msg.time_ref.nsecs = nsecs
             time_ref_msg.source = source
             self.time_ref_pub.publish(time_ref_msg)
 

@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.1 (2016-08-16)
+------------------
 * fix TimeReference member name
 * Contributors: Francis Colas
 

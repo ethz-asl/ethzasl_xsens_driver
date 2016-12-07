@@ -58,6 +58,15 @@ class XSensDriver(object):
         rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
         self.mt = mtdevice.MTDevice(device, baudrate, timeout)
 
+        # optional no rotation procedure for internal calibration of biases
+        # (only mark iv devices)
+        no_rotation_duration = get_param('~no_rotation_duration', 0)
+        if no_rotation_duration:
+            rospy.loginfo("Starting the no-rotation procedure to estimate the "
+                          "gyroscope biases for %d s. Please don't move the IMU"
+                          " during this time." % no_rotation_duration)
+            self.mt.SetNoRotation(no_rotation_duration)
+
         self.frame_id = get_param('~frame_id', '/base_imu')
 
         self.frame_local = get_param('~frame_local', 'ENU')

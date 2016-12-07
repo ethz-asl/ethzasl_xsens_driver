@@ -54,6 +54,7 @@ The nodes can take the following parameters:
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
 - \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED,
 or \c NWU).
+- \a ~no_rotation_duration (0): the int duration in seconds of the no-rotation calibration procedure at the start of the node (only for mark iv devices). If 0, the procedure is not launched.
 
 \section dialout Permissions
 

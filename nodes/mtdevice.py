@@ -752,7 +752,7 @@ class MTDevice(object):
                     o['velE'], o['velD'], o['gSpeed'], o['headMot'], o['sAcc'],\
                     o['headAcc'], o['headVeh'], o['gdop'], o['pdop'],\
                     o['tdop'], o['vdop'], o['hdop'], o['ndop'], o['edop'] = \
-                    struct.unpack('!IHBBBBBBIiBBBBiiiiIIiiiiiIIiHHHHHHH',
+                    struct.unpack('!IHBBBBBBIiBBBxiiiiIIiiiiiIIiHHHHHHH',
                                   content)
                 # scaling correction
                 o['lon'] *= 1e-7

@@ -764,7 +764,7 @@ class MTDevice(object):
                 o['tdop'] *= 0.01
                 o['vdop'] *= 0.01
                 o['hdop'] *= 0.01
-                o['bdop'] *= 0.01
+                o['ndop'] *= 0.01
                 o['edop'] *= 0.01
             elif (data_id & 0x00F0) == 0x20:  # GNSS satellites info
                 o['iTOW'], o['numSvs'] = struct.unpack('!LBxxx', content[:8])

@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.1.0 (2017-04-14)
+------------------
 * Add no_rotation_duration option
 * Fix typo (`#39 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/39>`_)
 * Fix gnss pvt parsing (`#37 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/37>`_)

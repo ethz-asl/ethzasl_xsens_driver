@@ -6,54 +6,33 @@ The \b xsens_driver package provides \b mtnode.py, a generic ROS node publishing
 
 \section topics Topics
 
-The ROS node is a wrapper around the \b mtdevice::MTDevice class. It can publish the
-following topics, depending on the configuration of the device:
-- \c /imu/data (<a
-  href="http://www.ros.org/doc/api/sensor_msgs/html/msg/Imu.html">sensor_msgs::Imu</a>):
-  orientation, angular velocity, linear acceleration,
-- \c /fix (<a
-  href="http://www.ros.org/doc/api/sensor_msgs/html/msg/NavSatFix.html">sensor_msgs::NavSatFix</a>):
-  longitude, latitude, altitude (from GPS only for MTi-G),
-- \c /fix_extended (<a
-  href="http://www.ros.org/doc/api/gps_common/html/msg/GPSFix.html">gps_common::GPSFix</a>):
-  more complete GPS information than \c /fix,
-- \c /velocity (<a
-  href="http://www.ros.org/doc/api/geometry_msgs/html/msg/TwistStamped.html">geometry_msgs::TwistStamped</a>): linear and angular velocity,
-- \c /magnetic (<a
-  href="http://www.ros.org/doc/api/geometry_msgs/html/msg/Vector3Stamped.html">geometry_msgs::Vector3Stamped</a>): direction of magnetic field,
-- \c /temperature (<a
-  href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): temperature,
-- \c /pressure (<a
-  href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): pressure,
-- \c /analog_in1 (<a
-  href="http://www.ros.org/doc/api/std_msgs/html/msg/UInt16.html">std_msgs::UInt16</a>): first analog input,
-- \c /analog_in2 (<a
-  href="http://www.ros.org/doc/api/std_msgs/html/msg/UInt16.html">std_msgs::UInt16</a>): second analog input.
+The ROS node is a wrapper around the \b mtdevice::MTDevice class. It can publish the following topics, depending on the configuration of the device:
+- \c /imu/data (<a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/Imu.html">sensor_msgs::Imu</a>): orientation, angular velocity, linear acceleration,
+- \c /fix (<a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/NavSatFix.html">sensor_msgs::NavSatFix</a>): longitude, latitude, altitude (from GPS only for MTi-G),
+- \c /fix_extended (<a href="http://www.ros.org/doc/api/gps_common/html/msg/GPSFix.html">gps_common::GPSFix</a>): more complete GPS information than \c /fix,
+- \c /velocity (<a href="http://www.ros.org/doc/api/geometry_msgs/html/msg/TwistStamped.html">geometry_msgs::TwistStamped</a>): linear and angular velocity,
+- \c /magnetic (<a href="http://www.ros.org/doc/api/geometry_msgs/html/msg/Vector3Stamped.html">geometry_msgs::Vector3Stamped</a>): direction of magnetic field,
+- \c /temperature (<a href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): temperature,
+- \c /pressure (<a href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): pressure,
+- \c /analog_in1 (<a href="http://www.ros.org/doc/api/std_msgs/html/msg/UInt16.html">std_msgs::UInt16</a>): first analog input,
+- \c /analog_in2 (<a href="http://www.ros.org/doc/api/std_msgs/html/msg/UInt16.html">std_msgs::UInt16</a>): second analog input.
 
-It can also publish <a href="http://www.ros.org/wiki/diagnostics">diagnostics</a>
-information.
+It can also publish <a href="http://www.ros.org/wiki/diagnostics">diagnostics</a> information.
 
 Finally, it always publishes the decoded message as a <a href="http://www.ros.org/doc/api/std_msgs/html/msg/String.html">std_msgs::String</a> representing the Python dictionary on \c /imu_data_str.
 
-If the IMU is set to raw mode, the values of the \c /imu/data, \c /velocity and \c
-/magnetic topics are the 16 bits output of the AD converters and therefore not in
-usual unit.
+If the IMU is set to raw mode, the values of the \c /imu/data, \c /velocity and \c /magnetic topics are the 16 bits output of the AD converters and therefore not in usual units.
 
-The covariance information in the <a
- href="http://www.ros.org/doc/api/sensor_msgs/html/msg/Imu.html">sensor_msgs::Imu</a>
-message are filled with default values from the MTx/MTi/MTi-G documentation but
-may not be exact; it also does not correspond to the covariance of the internal XKF.
+The covariance information in the <a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/Imu.html">sensor_msgs::Imu</a> message are filled with default values from the MTx/MTi/MTi-G documentation but may not be exact; it also does not correspond to the covariance of the internal XKF.
 
 \section params Parameters
 
 The nodes can take the following parameters:
-- \a ~device (\c auto): the path of the device file to connect to the imu; \c
-  auto will look through all serial devices to find the first one.
-- \a ~baudrate (0): the baudrate of the IMU (unused for \c auto device); 0 will
-  try to auto-detect baudrate.
+- \a ~device (\c auto): the path of the device file to connect to the imu; \c auto will look through all serial devices to find the first one.
+- \a ~baudrate (0): the baudrate of the IMU (unused for \c auto device); 0 will try to auto-detect baudrate.
+- \a ~timeout (0.002): the timeout for communication with the IMU.
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
-- \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED,
-or \c NWU).
+- \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED, or \c NWU).
 - \a ~no_rotation_duration (0): the int duration in seconds of the no-rotation calibration procedure at the start of the node (only for mark iv devices). If 0, the procedure is not launched.
 
 \section dialout Permissions

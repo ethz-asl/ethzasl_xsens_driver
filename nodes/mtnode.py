@@ -12,6 +12,9 @@ from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
     FluidPressure, Temperature, TimeReference
 from geometry_msgs.msg import TwistStamped, PointStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+
+import diagnostic_updater
+
 import time
 import datetime
 import calendar
@@ -51,7 +54,6 @@ def matrix_from_diagonal(diagonal):
 
 
 class XSensDriver(object):
-
     def __init__(self):
         device = get_param('~device', 'auto')
         baudrate = get_param('~baudrate', 0)
@@ -103,17 +105,39 @@ class XSensDriver(object):
             get_param_list("~orientation_covariance_diagonal", [radians(1.), radians(1.), radians(9.)])
         )
 
-        self.diag_msg = DiagnosticArray()
         self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
                                            message='No status information')
         self.xkf_stat = DiagnosticStatus(name='mtnode: XKF Valid', level=1,
                                          message='No status information')
         self.gps_stat = DiagnosticStatus(name='mtnode: GPS Fix', level=1,
                                          message='No status information')
-        self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
+
+        self.device_info = {
+            'product_code': self.mt.GetProductCode(),
+            'device_id': self.mt.GetDeviceID(),
+            'firmware_rev': self.mt.GetFirmwareRev()
+        }
+
+        output_config = self.mt.GetConfiguration()
+        for (k, v) in output_config.iteritems():
+            self.device_info[k] = v
+
+        self.updater = diagnostic_updater.Updater()
+        self.updater.setHardwareID(str(self.mt.GetDeviceID()))
+
+        self.updater.add("Self Test", self.diagnostic_self_test)
+        self.updater.add("XKF", self.diagnostic_xkf)
+        self.updater.add("GPS Fix", self.diagnostic_gps)
+        self.updater.add("Device Info", self.diagnostic_device)
+
+        self.imu_freq = diagnostic_updater.TopicDiagnostic("imu/data", self.updater,
+            diagnostic_updater.FrequencyStatusParam({'min': 0, 'max': 100}, 0.1, 10),
+            diagnostic_updater.TimeStampStatusParam())
+        self.mag_freq = diagnostic_updater.TopicDiagnostic("imu/mag", self.updater,
+            diagnostic_updater.FrequencyStatusParam({'min': 0, 'max': 100}, 0.1, 10),
+            diagnostic_updater.TimeStampStatusParam())
 
         # publishers created at first use to reduce topic clutter
-        self.diag_pub = None
         self.imu_pub = None
         self.raw_gps_pub = None
         self.vel_pub = None
@@ -171,6 +195,20 @@ class XSensDriver(object):
         # should be OSError in python 3.?
         except (select.error, OSError, serial.serialutil.SerialException):
             pass
+
+    def diagnostic_self_test(self, stat):
+        stat.summary(self.stest_stat.level, self.stest_stat.message)
+
+    def diagnostic_xkf(self, stat):
+        stat.summary(self.xkf_stat.level, self.xkf_stat.message)
+
+    def diagnostic_gps(self, stat):
+        stat.summary(self.gps_stat.level, self.gps_stat.message)
+
+    def diagnostic_device(self, stat):
+        stat.summary(DiagnosticStatus.OK, "Device Ok")
+        for (k, v) in self.device_info.iteritems():
+            stat.add(k, v)
 
     def spin_once(self):
         '''Read data from device and publishes ROS messages.'''
@@ -563,7 +601,7 @@ class XSensDriver(object):
             block.'''
             try:
                 dqw, dqx, dqy, dqz = (o['Delta q0'], o['Delta q1'],
-                    o['Delta q2'], o['Delta q3'])
+                                      o['Delta q2'], o['Delta q3'])
                 now = rospy.Time.now()
                 if self.last_delta_q_time is None:
                     self.last_delta_q_time = now
@@ -723,6 +761,7 @@ class XSensDriver(object):
             self.imu_msg.header = self.h
             if self.imu_pub is None:
                 self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
+            self.imu_freq.tick(self.h.stamp)
             self.imu_pub.publish(self.imu_msg)
         if self.pub_raw_gps:
             self.raw_gps_msg.header = self.h
@@ -745,6 +784,7 @@ class XSensDriver(object):
             if self.mag_pub is None:
                 self.mag_pub = rospy.Publisher('imu/mag', MagneticField,
                                                queue_size=10)
+            self.mag_freq.tick(self.h.stamp)
             self.mag_pub.publish(self.mag_msg)
         if self.pub_temp:
             self.temp_msg.header = self.h
@@ -774,14 +814,10 @@ class XSensDriver(object):
                 self.ecef_pub = rospy.Publisher('ecef', PointStamped,
                                                 queue_size=10)
             self.ecef_pub.publish(self.ecef_msg)
-        if self.pub_diag:
-            self.diag_msg.header = self.h
-            if self.diag_pub is None:
-                self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray,
-                                                queue_size=10)
-            self.diag_pub.publish(self.diag_msg)
+
         # publish string representation
         self.str_pub.publish(str(data))
+        self.updater.update()
 
 
 def main():

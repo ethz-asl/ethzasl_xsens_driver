@@ -12,8 +12,8 @@ from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
     FluidPressure, Temperature, TimeReference
 from geometry_msgs.msg import TwistStamped, PointStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
-
-import diagnostic_updater
+from diagnostic_updater import Updater, TopicDiagnostic,\
+    FrequencyStatusParam, TimeStampStatusParam
 
 import time
 import datetime
@@ -92,7 +92,6 @@ class XSensDriver(object):
             self.mt.SetNoRotation(no_rotation_duration)
 
         self.frame_id = get_param('~frame_id', '/base_imu')
-
         self.frame_local = get_param('~frame_local', 'ENU')
 
         self.angular_velocity_covariance = matrix_from_diagonal(
@@ -118,11 +117,8 @@ class XSensDriver(object):
             'firmware_rev': self.mt.GetFirmwareRev()
         }
 
-        output_config = self.mt.GetConfiguration()
-        for (k, v) in output_config.iteritems():
-            self.device_info[k] = v
-
-        self.updater = diagnostic_updater.Updater()
+        self.device_info.update(self.mt.GetConfiguration())
+        self.updater = Updater()
         self.updater.setHardwareID(str(self.mt.GetDeviceID()))
 
         self.updater.add("Self Test", self.diagnostic_self_test)
@@ -130,12 +126,12 @@ class XSensDriver(object):
         self.updater.add("GPS Fix", self.diagnostic_gps)
         self.updater.add("Device Info", self.diagnostic_device)
 
-        self.imu_freq = diagnostic_updater.TopicDiagnostic("imu/data", self.updater,
-            diagnostic_updater.FrequencyStatusParam({'min': 0, 'max': 100}, 0.1, 10),
-            diagnostic_updater.TimeStampStatusParam())
-        self.mag_freq = diagnostic_updater.TopicDiagnostic("imu/mag", self.updater,
-            diagnostic_updater.FrequencyStatusParam({'min': 0, 'max': 100}, 0.1, 10),
-            diagnostic_updater.TimeStampStatusParam())
+        self.imu_freq = TopicDiagnostic("imu/data", self.updater,
+                                        FrequencyStatusParam({'min': 0, 'max': 100}, 0.1, 10),
+                                        TimeStampStatusParam())
+        self.mag_freq = TopicDiagnostic("imu/mag", self.updater,
+                                        FrequencyStatusParam({'min': 0, 'max': 100}, 0.1, 10),
+                                        TimeStampStatusParam())
 
         # publishers created at first use to reduce topic clutter
         self.imu_pub = None
@@ -207,8 +203,8 @@ class XSensDriver(object):
 
     def diagnostic_device(self, stat):
         stat.summary(DiagnosticStatus.OK, "Device Ok")
-        for (k, v) in self.device_info.iteritems():
-            stat.add(k, v)
+        for (key, value) in self.device_info.iteritems():
+            stat.add(key, value)
 
     def spin_once(self):
         '''Read data from device and publishes ROS messages.'''

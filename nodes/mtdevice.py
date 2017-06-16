@@ -1170,6 +1170,10 @@ Commands:
         below).
     -v, --verbose
         Verbose output.
+    -y, --synchronization=settings (see below)
+        Configure the synchronization settings of each sync line (see below)
+    -u, --setUTCTime=time (see below)
+        Sets the UTC time buffer of the device
 
 Generic options:
     -d, --device=DEV
@@ -1254,6 +1258,85 @@ Configuration option:
             For longitude, latitude, altitude and orientation (on MTi-G-700):
                 "pl400fe,pa400fe,oq400fe"
 
+Synchronization settings:
+    The format follows the xsens protocol documentation:
+    |Function| Line| Trigger Type| Skip First|...
+    Skip Factor| Pulse Width| Delay or Clock period or offset|
+    It is required to have all fields presenst in the settings argument
+    Note: The entire synchronization buffer is wiped every time a new one 
+          is set, so it is necessary to specify the settings of multiple 
+          lines at once.
+
+        Function (see manual for details):
+            3 Trigger indication
+            4 Interval Transition Measurement
+            8 SendLatest
+            9 ClockBiasEstimation
+            11 StartSampling
+        Line (manual for details):
+            0 ClockIn
+            1 GPSClockIn (only available for 700/710)
+            2 Input Line (SyncIn)
+            4 SyncOut
+            5 ExtTimepulseIn (only available for 700/710)
+            6 Software (only available for SendLatest with ReqData message)
+        Polarity:
+            1 Positive pulse/ Rising edge
+            2 Negative pulse/ Falling edge
+            3 Both/ Toggle
+        Trigger Type:
+            0 multiple times
+            1 once
+        Skip First (unsigned_int):
+            Number of initial events to skip before taking actions
+        Skip Factor (unsigned_int):
+            Number of events to skip before taking action again
+            Ignored with ReqData.
+        Pulse Width (unsigned_int):
+            Ignored for SyncIn.
+            For SyncOut, the width of the generated pulse in 100 microseconds
+            unit. Ignored for Toggle pulses.
+        Delay:
+            Delay after receiving a sync pulse to taking action,
+            100 microseconds units, range [0...600000]
+        Clock Period:
+            Reference clock period in milliseconds for ClockBiasEstimation
+        Offset:
+            Offset from event to pulse generation.
+            100 microseconds unit, range [-30000...+30000]
+
+    Examples:
+        For changing the sync setting of the SyncIn line to trigger indication
+        with rising edge, one time triggering and no skipping and delay. Enter
+        the settings as:
+            "3,2,1,1,0,0,0,0"
+
+        Note a number is still in the place for pulse width despite it being
+        ignored.
+
+        To set multiple lines at once:
+        ./mtdevice.py -y 3,2,1,0,0,0,0,0 -y 9,0,1,0,0,0,10,0
+
+SetUTCTime settings:
+    The time fields are set as follow:
+        ns: nanoseconds of second, range [0,1000000000]
+        year: range [1999,2099]
+        month: range [1,12]
+        day: day of the month, [1,31]
+        hour: hour of the day, [0,23]
+        min: minute of hour, [0,59]
+        sec: seconds of minute, minute [0,59]
+        flag:
+            1: Valid Time of Week
+            2: Valid Week Number
+            4: valid UTC
+        Note: the flag is ignored for setUTCTime as it is set by the module
+              itself when connected to a GPS
+
+    Examples:
+        Set UTC time for the device:
+        ./mtdevice.py -u 0,1999,1,1,0,0,0,0
+
 Legacy options:
     -m, --output-mode=MODE
         Legacy mode of the device to select the information to output.
@@ -1316,11 +1399,12 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:c:eild:b:m:s:p:f:x:v'
+    shopts = 'hra:c:eild:b:y:u:m:s:p:f:x:v'
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
-             'deprecated-skip-factor=', 'xkf-scenario=', 'verbose']
+             'deprecated-skip-factor=', 'xkf-scenario=', 'verbose', 
+             'synchronization=', 'setUTCtime=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1338,6 +1422,7 @@ def main():
     new_xkf = None
     actions = []
     verbose = False
+    sync_settings = []
     # filling in arguments
     for o, a in opts:
         if o in ('-h', '--help'):
@@ -1370,6 +1455,16 @@ def main():
                 print "xkf-scenario argument must be integer."
                 return 1
             actions.append('xkf-scenario')
+        elif o in ('-y', '--synchronization'):
+            sync_settings.append(get_synchronization_settings(a))
+            if sync_settings is None:
+                return 1
+            actions.append('synchronization')
+        elif o in ('-u', '--setUTCtime'):
+            UTCtime_settings = get_UTCtime(a)
+            if sync_settings is None:
+                return 1
+            actions.append('setUTCtime')
         elif o in ('-d', '--device'):
             device = a
         elif o in ('-b', '--baudrate'):
@@ -1442,6 +1537,23 @@ def main():
             print "Changing output configuration",
             sys.stdout.flush()
             mt.SetOutputConfiguration(output_config)
+            print " Ok"  # should we test that it was actually ok?
+        if 'synchronization' in actions:
+            print "Changing synchrnoization settings",
+            sys.stdout.flush()
+            mt.SetSyncSettings(sync_settings)
+            print " Ok"  # should we test that it was actually ok?
+        if 'setUTCtime' in actions:
+            print "Setting UTC time in the device",
+            sys.stdout.flush()
+            mt.SetUTCTime(UTCtime_settings[0],
+                          UTCtime_settings[1],
+                          UTCtime_settings[2],
+                          UTCtime_settings[3],
+                          UTCtime_settings[4],
+                          UTCtime_settings[5],
+                          UTCtime_settings[6],
+                          UTCtime_settings[7])
             print " Ok"  # should we test that it was actually ok?
         if 'legacy-configure' in actions:
             if mode is None:
@@ -1699,6 +1811,46 @@ def get_settings(arg):
     settings = timestamp | orient_mode | calib_mode | NED
     return settings
 
+def get_synchronization_settings(arg):
+    """Parse command line synchronization-settings argument."""
+    # Parse each field from the argument
+    settings = arg.split(',')
+    settings = tuple([int(i) for i in settings]) 
+    # Check settings
+    valid = False
+    if settings[0] in (3, 4, 8, 9, 11) and \
+       settings[1] in (0, 1, 2, 4, 5, 6) and \
+       settings[2] in (1, 2, 3) and \
+       settings[3] in (0, 1):
+        valid = True
+    else:
+        valid = False
+
+    if valid:
+        return settings
+    else:
+        print "Invalide synchronization settings!"
+        return
+
+def get_UTCtime(arg):
+    # Parse each field from the argument
+    time_settings = arg.split(',')
+    time_settings = [int(i) for i in time_settings]
+    if 0 <= time_settings[0] <= 1000000000 and\
+       1999 <= time_settings[1] <= 2099 and\
+       1 <= time_settings[2] <= 12 and\
+       1 <= time_settings[3] <= 31 and\
+       0 <= time_settings[4] <= 23 and\
+       0 <= time_settings[5] <= 59 and\
+       0 <= time_settings[6] <= 59:
+        valid = True
+    else:
+        valid = False
+    if valid:
+        return time_settings
+    else:
+        print "Invalid UTCtime settings!"
+        return
 
 if __name__ == '__main__':
     main()

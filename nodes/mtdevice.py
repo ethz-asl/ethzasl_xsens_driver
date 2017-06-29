@@ -1319,11 +1319,11 @@ SetUTCTime settings:
     The time fields are set as follows:
         year: range [1999,2099]
         month: range [1,12]
-        day: day of the month, [1,31]
-        hour: hour of the day, [0,23]
-        min: minute of hour, [0,59]
-        sec: seconds of minute, minute [0,59]
-        ns: nanoseconds of second, range [0,1000000000]
+        day: range [1,31]
+        hour: range [0,23]
+        min: range [0,59]
+        sec: range [0,59]
+        ns: range [0,1000000000]
         flag:
             1: Valid Time of Week
             2: Valid Week Number

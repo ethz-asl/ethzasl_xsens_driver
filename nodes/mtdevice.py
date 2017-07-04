@@ -577,7 +577,7 @@ class MTDevice(object):
             struct.unpack('!IHBBBBBB', data)
         return (ns, year, month, day, hour, minute, second, flag)
 
-    def SetUTCTime(self, year, month, day, hour, minute, second, ns, flag):
+    def SetUTCTime(self, ns, year, month, day, hour, minute, second, flag):
         """Set UTC time on the device."""
         self._ensure_config_state()
         data = struct.pack('!IHBBBBBB', ns, year, month, day, hour, minute,
@@ -1319,11 +1319,11 @@ SetUTCTime settings:
     The time fields are set as follows:
         year: range [1999,2099]
         month: range [1,12]
-        day: range [1,31]
-        hour: range [0,23]
-        min: range [0,59]
-        sec: range [0,59]
-        ns: range [0,1000000000]
+        day: day of the month, range [1,31]
+        hour: hour of the day, range [0,23]
+        min: minute of the hour, range [0,59]
+        sec: second of the minute, range [0,59]
+        ns: nanosecond of the second, range [0,1000000000]
         flag:
             1: Valid Time of Week
             2: Valid Week Number
@@ -1545,13 +1545,13 @@ def main():
         if 'setUTCtime' in actions:
             print "Setting UTC time in the device",
             sys.stdout.flush()
-            mt.SetUTCTime(UTCtime_settings[0],
+            mt.SetUTCTime(UTCtime_settings[6],
+                          UTCtime_settings[0], 
                           UTCtime_settings[1],
                           UTCtime_settings[2],
                           UTCtime_settings[3],
                           UTCtime_settings[4],
                           UTCtime_settings[5],
-                          UTCtime_settings[6],
                           UTCtime_settings[7])
             print " Ok"  # should we test that it was actually ok?
         if 'legacy-configure' in actions:
@@ -1817,40 +1817,42 @@ def get_synchronization_settings(arg):
     try:
         # convert string to int
         settings = tuple([int(i) for i in settings])
-    
-        # check synchronization settings
-        if settings[0] in (3, 4, 8, 9, 11) and \
-           settings[1] in (0, 1, 2, 4, 5, 6) and \
-           settings[2] in (1, 2, 3) and \
-           settings[3] in (0, 1):
-            return settings
-        else:
-            print "Invalid synchronization settings."
-            return
-    except:
+    except ValueError:
         print "Synchronization settings must be integers."
         return
+    # check synchronization settings
+    if settings[0] in (3, 4, 8, 9, 11) and \
+       settings[1] in (0, 1, 2, 4, 5, 6) and \
+       settings[2] in (1, 2, 3) and \
+       settings[3] in (0, 1):
+        return settings
+    else:
+        print "Invalid synchronization settings."
+        return
+    
 
 def get_UTCtime(arg):
     # Parse each field from the argument
     time_settings = arg.split(',')
     try:
         time_settings = [int(i) for i in time_settings]
-        # check UTCtime settings
-        if 1999 <= time_settings[0] <= 2099 and\
-           1 <= time_settings[1] <= 12 and\
-           1 <= time_settings[2] <= 31 and\
-           0 <= time_settings[3] <= 23 and\
-           0 <= time_settings[4] <= 59 and\
-           0 <= time_settings[5] <= 59 and\
-           0 <= time_settings[6] <= 1000000000:
-            return time_settings
-        else:
-            print "Invalid UTCtime settings."
-            return
-    except:
+    except ValueError:
         print "UTCtime settings must be integers."
         return
+    
+    # check UTCtime settings
+    if 1999 <= time_settings[0] <= 2099 and\
+       1 <= time_settings[1] <= 12 and\
+       1 <= time_settings[2] <= 31 and\
+       0 <= time_settings[3] <= 23 and\
+       0 <= time_settings[4] <= 59 and\
+       0 <= time_settings[5] <= 59 and\
+       0 <= time_settings[6] <= 1000000000:
+        return time_settings
+    else:
+        print "Invalid UTCtime settings."
+        return
+    
 
 if __name__ == '__main__':
     main()

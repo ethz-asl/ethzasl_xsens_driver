@@ -4,6 +4,7 @@ import struct
 import sys
 import getopt
 import time
+import datetime
 import glob
 import re
 import pprint
@@ -1316,23 +1317,27 @@ Synchronization settings:
         ./mtdevice.py -y 3,2,1,0,0,0,0,0 -y 9,0,1,0,0,0,10,0
 
 SetUTCTime settings:
-    The time fields are set as follows:
-        year: range [1999,2099]
-        month: range [1,12]
-        day: day of the month, range [1,31]
-        hour: hour of the day, range [0,23]
-        min: minute of the hour, range [0,59]
-        sec: second of the minute, range [0,59]
-        ns: nanosecond of the second, range [0,1000000000]
-        flag:
-            1: Valid Time of Week
-            2: Valid Week Number
-            4: valid UTC
-        Note: the flag is ignored for setUTCTime as it is set by the module
-              itself when connected to a GPS
+    There are two ways to set the UTCtime for the MTi.
+    Option #1: set MTi to the current UTC time based on local system time
+    Option #2: set MTi to a specified UTC time
+        The time fields are set as follows:
+            year: range [1999,2099]
+            month: range [1,12]
+            day: day of the month, range [1,31]
+            hour: hour of the day, range [0,23]
+            min: minute of the hour, range [0,59]
+            sec: second of the minute, range [0,59]
+            ns: nanosecond of the second, range [0,1000000000]
+            flag:
+                1: Valid Time of Week
+                2: Valid Week Number
+                4: valid UTC
+            Note: the flag is ignored for setUTCTime as it is set by the module
+                  itself when connected to a GPS
 
     Examples:
         Set UTC time for the device:
+        ./mtdevice.py -u now
         ./mtdevice.py -u 1999,1,1,0,0,0,0,0
 
 Legacy options:
@@ -1832,26 +1837,41 @@ def get_synchronization_settings(arg):
     
 
 def get_UTCtime(arg):
-    # Parse each field from the argument
-    time_settings = arg.split(',')
-    try:
-        time_settings = [int(i) for i in time_settings]
-    except ValueError:
-        print "UTCtime settings must be integers."
-        return
-    
-    # check UTCtime settings
-    if 1999 <= time_settings[0] <= 2099 and\
-       1 <= time_settings[1] <= 12 and\
-       1 <= time_settings[2] <= 31 and\
-       0 <= time_settings[3] <= 23 and\
-       0 <= time_settings[4] <= 59 and\
-       0 <= time_settings[5] <= 59 and\
-       0 <= time_settings[6] <= 1000000000:
+    # If argument is now, fill the time settings with the current time
+    # else fill the time settings with the specified time
+    if arg == "now":
+        timestamp2 = datetime.datetime.utcnow() # use datetime to get microsecond
+        time_settings = []
+        time_settings.append(timestamp.year)
+        time_settings.append(timestamp.month)
+        time_settings.append(timestamp.day)
+        time_settings.append(timestamp.hour)
+        time_settings.append(timestamp.minute)
+        time_settings.append(timestamp.second)
+        time_settings.append(timestamp.microsecond*1000) # multiply by 1000 to obtain nanoseconds
+        time_settings.append(0) # default flag to 0
         return time_settings
     else:
-        print "Invalid UTCtime settings."
-        return
+        # Parse each field from the argument
+        time_settings = arg.split(',')
+        try:
+            time_settings = [int(i) for i in time_settings]
+        except ValueError:
+            print "UTCtime settings must be integers."
+            return
+        
+        # check UTCtime settings
+        if 1999 <= time_settings[0] <= 2099 and\
+           1 <= time_settings[1] <= 12 and\
+           1 <= time_settings[2] <= 31 and\
+           0 <= time_settings[3] <= 23 and\
+           0 <= time_settings[4] <= 59 and\
+           0 <= time_settings[5] <= 59 and\
+           0 <= time_settings[6] <= 1000000000:
+            return time_settings
+        else:
+            print "Invalid UTCtime settings."
+            return
     
 
 if __name__ == '__main__':

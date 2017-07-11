@@ -1465,9 +1465,10 @@ def main():
                 return 1
             actions.append('xkf-scenario')
         elif o in ('-y', '--synchronization'):
-            sync_settings.append(get_synchronization_settings(a))
-            if sync_settings is None:
+            new_sync_settings = get_synchronization_settings(a)
+            if new_sync_settings is None:
                 return 1
+            sync_settings.append(new_sync_settings)
             actions.append('synchronization')
         elif o in ('-u', '--setUTCtime'):
             UTCtime_settings = get_UTCtime(a)

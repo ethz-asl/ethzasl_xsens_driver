@@ -1265,6 +1265,7 @@ Synchronization settings:
     Note: The entire synchronization buffer is wiped every time a new one 
           is set, so it is necessary to specify the settings of multiple 
           lines at once.
+    It also possible to clear the synchronization with the argument "clear"
 
         Function (see manual for details):
              3 Trigger indication
@@ -1316,9 +1317,13 @@ Synchronization settings:
         To set multiple lines at once:
         ./mtdevice.py -y 3,2,1,0,0,0,0,0 -y 9,0,1,0,0,0,10,0
 
+        To clear the synchronization settings of MTi
+        ./mtdevice.py -y clear
+
 SetUTCTime settings:
     There are two ways to set the UTCtime for the MTi.
-    Option #1: set MTi to the current UTC time based on local system time
+    Option #1: set MTi to the current UTC time based on local system time with 
+               the option 'now'
     Option #2: set MTi to a specified UTC time
         The time fields are set as follows:
             year: range [1999,2099]
@@ -1817,23 +1822,27 @@ def get_settings(arg):
 
 def get_synchronization_settings(arg):
     """Parse command line synchronization-settings argument."""
-    # Parse each field from the argument
-    settings = arg.split(',')
-    try:
-        # convert string to int
-        settings = tuple([int(i) for i in settings])
-    except ValueError:
-        print "Synchronization settings must be integers."
-        return
-    # check synchronization settings
-    if settings[0] in (3, 4, 8, 9, 11) and \
-       settings[1] in (0, 1, 2, 4, 5, 6) and \
-       settings[2] in (1, 2, 3) and \
-       settings[3] in (0, 1):
-        return settings
+    if arg == "clear":
+        sync_settings = [0,0,0,0,0,0,0,0]
+        return sync_settings
     else:
-        print "Invalid synchronization settings."
-        return
+        # Parse each field from the argument
+        sync_settings = arg.split(',')
+        try:
+            # convert string to int
+            sync_settings = tuple([int(i) for i in sync_settings])
+        except ValueError:
+            print "Synchronization sync_settings must be integers."
+            return
+        # check synchronization sync_settings
+        if sync_settings[0] in (3, 4, 8, 9, 11) and \
+           sync_settings[1] in (0, 1, 2, 4, 5, 6) and \
+           sync_settings[2] in (1, 2, 3) and \
+           sync_settings[3] in (0, 1):
+            return sync_settings
+        else:
+            print "Invalid synchronization settings."
+            return
     
 
 def get_UTCtime(arg):

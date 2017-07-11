@@ -1840,7 +1840,7 @@ def get_UTCtime(arg):
     # If argument is now, fill the time settings with the current time
     # else fill the time settings with the specified time
     if arg == "now":
-        timestamp2 = datetime.datetime.utcnow() # use datetime to get microsecond
+        timestamp = datetime.datetime.utcnow() # use datetime to get microsecond
         time_settings = []
         time_settings.append(timestamp.year)
         time_settings.append(timestamp.month)

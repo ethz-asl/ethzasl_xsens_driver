@@ -548,7 +548,6 @@ class XSensDriver(object):
                     delta_t_filtered = .95/self.delta_q_rate + .05*delta_t
                     # rate in necessarily integer
                     self.delta_q_rate = round(1./delta_t_filtered)
-                    print(delta_t, delta_t_filtered, self.delta_q_rate)
                     self.last_delta_q_time = now
                     # relationship between \Delta q and velocity \bm{\omega}:
                     # \bm{w} = \Delta t . \bm{\omega}
@@ -575,7 +574,6 @@ class XSensDriver(object):
                     self.vel_msg.twist.angular.y = y
                     self.vel_msg.twist.angular.z = z
                     self.pub_vel = True
-                    print(x, y, z)
             except KeyError:
                 pass
             try:
@@ -593,8 +591,6 @@ class XSensDriver(object):
                 self.vel_msg.twist.angular.y = y
                 self.vel_msg.twist.angular.z = z
                 self.pub_vel = True
-                print(x, y, z)
-                print
             except KeyError:
                 pass
 

@@ -13,6 +13,7 @@ from geometry_msgs.msg import TwistStamped, PointStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
 import datetime
+import calendar
 
 # transform Euler angles or matrix into quaternions
 from math import radians, sqrt, atan2
@@ -392,7 +393,7 @@ class XSensDriver(object):
                 y, m, d, hr, mi, s, ns, f = o['Year'], o['Month'], o['Day'],\
                     o['Hour'], o['Minute'], o['Second'], o['ns'], o['Flags']
                 if f & 0x4:
-                    secs = time.mktime((y, m, d, hr, mi, s, 0, 0, 0))
+                    secs = calendar.timegm((y, m, d, hr, mi, s, 0, 0, 0))
                     publish_time_ref(secs, ns, 'UTC time')
             except KeyError:
                 pass

@@ -1262,8 +1262,8 @@ Configuration option:
 Synchronization settings:
     The format follows the xsens protocol documentation. All fields are required
     and separated by commas.
-    Note: The entire synchronization buffer is wiped every time a new one 
-          is set, so it is necessary to specify the settings of multiple 
+    Note: The entire synchronization buffer is wiped every time a new one
+          is set, so it is necessary to specify the settings of multiple
           lines at once.
     It also possible to clear the synchronization with the argument "clear"
 
@@ -1322,7 +1322,7 @@ Synchronization settings:
 
 SetUTCTime settings:
     There are two ways to set the UTCtime for the MTi.
-    Option #1: set MTi to the current UTC time based on local system time with 
+    Option #1: set MTi to the current UTC time based on local system time with
                the option 'now'
     Option #2: set MTi to a specified UTC time
         The time fields are set as follows:
@@ -1411,7 +1411,7 @@ def main():
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
-             'deprecated-skip-factor=', 'xkf-scenario=', 'verbose', 
+             'deprecated-skip-factor=', 'xkf-scenario=', 'verbose',
              'synchronization=', 'setUTCtime=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
@@ -1557,7 +1557,7 @@ def main():
             print "Setting UTC time in the device",
             sys.stdout.flush()
             mt.SetUTCTime(UTCtime_settings[6],
-                          UTCtime_settings[0], 
+                          UTCtime_settings[0],
                           UTCtime_settings[1],
                           UTCtime_settings[2],
                           UTCtime_settings[3],
@@ -1628,6 +1628,8 @@ def inspect(mt, device, baudrate):
                 print formater(f(*args, **kwargs))
             else:
                 pprint.pprint(f(*args, **kwargs), indent=4)
+        except MTTimeoutException as e:
+            print 'timeout: might be unsupported by your device.'
         except MTErrorMessage as e:
             if e.code == 0x04:
                 print 'message unsupported by your device.'
@@ -1844,7 +1846,7 @@ def get_synchronization_settings(arg):
         else:
             print "Invalid synchronization settings."
             return
-    
+
 
 def get_UTCtime(arg):
     # If argument is now, fill the time settings with the current time
@@ -1869,7 +1871,7 @@ def get_UTCtime(arg):
         except ValueError:
             print "UTCtime settings must be integers."
             return
-        
+
         # check UTCtime settings
         if 1999 <= time_settings[0] <= 2099 and\
            1 <= time_settings[1] <= 12 and\
@@ -1882,7 +1884,7 @@ def get_UTCtime(arg):
         else:
             print "Invalid UTCtime settings."
             return
-    
+
 
 if __name__ == '__main__':
     main()

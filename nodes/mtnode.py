@@ -223,9 +223,9 @@ class XSensDriver(object):
             start_of_week = stamp_day - datetime.timedelta(days=iso_day)
             # stamp at the millisecond precision
             stamp_ms = start_of_week + datetime.timedelta(milliseconds=itow)
-            secs = time.mktime((stamp_ms.year, stamp_ms.month, stamp_ms.day,
-                                stamp_ms.hour, stamp_ms.minute,
-                                stamp_ms.second, 0, 0, -1))
+            secs = calendar.timegm((stamp_ms.year, stamp_ms.month, stamp_ms.day,
+                                    stamp_ms.hour, stamp_ms.minute,
+                                    stamp_ms.second, 0, 0, -1))
             nsecs = stamp_ms.microsecond * 1000 + ns
             if nsecs < 0:  # ns can be negative
                 secs -= 1

@@ -34,7 +34,6 @@ def get_param(name, default):
 class XSensDriver(object):
 
     def __init__(self):
-
         device = get_param('~device', 'auto')
         baudrate = get_param('~baudrate', 0)
         timeout = get_param('~timeout', 0.002)
@@ -404,8 +403,9 @@ class XSensDriver(object):
                 pass
             try:
                 sample_time_fine = o['SampleTimeFine']
-                secs = int(sample_time_fine / 1000)
-                nsecs = 1e6 * (sample_time_fine % 1000)
+                # int in 10kHz ticks
+                secs = int(sample_time_fine / 10000)
+                nsecs = 1e5 * (sample_time_fine % 10000)
                 publish_time_ref(secs, nsecs, 'sample time fine')
             except KeyError:
                 pass

@@ -7,6 +7,9 @@ import mtdevice
 import mtdef
 
 from std_msgs.msg import Header, String, UInt16
+# Time debug
+from std_msgs.msg import Float64
+# /Time debug
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
     FluidPressure, Temperature, TimeReference
 from geometry_msgs.msg import TwistStamped, PointStamped
@@ -98,6 +101,15 @@ class XSensDriver(object):
         self.str_pub = rospy.Publisher('imu_data_str', String, queue_size=10)
         self.last_delta_q_time = None
         self.delta_q_rate = None
+        # Time debug
+        self.old_stamp = self.time_offset = None
+        self.acquisition_time_pub = rospy.Publisher('acquisition_time', Float64,
+                                                    queue_size=10)
+        self.delta_stamp_pub = rospy.Publisher('delta_stamp', Float64,
+                                               queue_size=10)
+        self.delta_time_ref_pub = rospy.Publisher('delta_time_ref', Float64,
+                                                  queue_size=10)
+        # /Time debug
 
     def reset_vars(self):
         self.imu_msg = Imu()
@@ -204,6 +216,14 @@ class XSensDriver(object):
             time_ref_msg.time_ref.nsecs = nsecs
             time_ref_msg.source = source
             self.time_ref_pub.publish(time_ref_msg)
+            # Time debug
+            if self.time_offset is None:
+                self.time_offset = self.h.stamp - time_ref_msg.time_ref
+            else:
+                delta_time = self.h.stamp - time_ref_msg.time_ref
+                delta_offset = delta_time - self.time_offset
+                self.delta_time_ref_pub.publish(delta_offset.to_sec())
+            # /Time debug
 
         def stamp_from_itow(itow, y=None, m=None, d=None, ns=0, week=None):
             """Return (secs, nsecs) from GPS time of week ms information."""
@@ -679,11 +699,19 @@ class XSensDriver(object):
             return "fill_from_%s" % (name.replace(" ", "_"))
 
         # get data
+        # Time debug
+        before = time.time()
+        # /Time debug
         try:
             data = self.mt.read_measurement()
         except mtdef.MTTimeoutException:
+            rospy.loginfo("timeout: waiting 0.1s and trying again")
             time.sleep(0.1)
             return
+        # Time debug
+        acquisition_time = time.time() - before
+        self.acquisition_time_pub.publish(acquisition_time)
+        # /Time debug
         # common header
         self.h = Header()
         self.h.stamp = rospy.Time.now()
@@ -705,6 +733,12 @@ class XSensDriver(object):
             if self.imu_pub is None:
                 self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
             self.imu_pub.publish(self.imu_msg)
+            # Time debug
+            if self.old_stamp is not None:
+                delta_stamp = self.h.stamp - self.old_stamp
+                self.delta_stamp_pub.publish(delta_stamp.to_sec())
+            self.old_stamp = self.h.stamp
+            # /Time debug
         if self.pub_gps:
             self.gps_msg.header = self.h
             if self.gps_pub is None:

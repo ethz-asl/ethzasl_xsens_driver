@@ -238,10 +238,13 @@ class MTDevice(object):
         """Get the firmware version."""
         self._ensure_config_state()
         data = self.write_ack(MID.ReqFWRev)
-        # XXX unpacking only 3 characters in accordance with the documentation
-        # but some devices send 11 bytes instead.
-        major, minor, revision = struct.unpack('!BBB', data[:3])
-        return (major, minor, revision)
+        if len(data) == 3:
+            major, minor, revision = struct.unpack('!BBB', data)
+            return (major, minor, revision)
+        else:
+            # TODO check buildnr/svnrev not sure unsigned
+            major, minor, rev, buildnr, svnrev = struct.unpack('!BBBII', data)
+            return (major, minor, rev, buildnr, svnrev)
 
     def RunSelfTest(self):
         """Run the built-in self test."""

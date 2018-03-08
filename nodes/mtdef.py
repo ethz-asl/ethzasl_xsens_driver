@@ -327,6 +327,7 @@ class MTErrorMessage(MTException):
             "the user is trying to duplicate an existing filter profile type",
         50: "The settings stored in the device's non volatile memory are "
             "invalid",
+        51: "Request for control of the device was denied",
         256: "A generic error occurred",
         257: "Operation not implemented in this version (yet)",
         258: "A timeout occurred",
@@ -390,6 +391,7 @@ class MTErrorMessage(MTException):
         314: "A device could not be put in config mode",
         315: "Device has gone out of range",
         316: "Device is back in range, resuming normal operation",
+        317: "The device was disconnected",
         400: "The device is shutting down "
     }
 

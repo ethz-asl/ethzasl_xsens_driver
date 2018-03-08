@@ -625,8 +625,8 @@ class MTDevice(object):
             raise MTException("unknown ICC command 0x%02X" % command)
         cmd_data = struct.pack('!B', command)
         res_data = self.write_ack(MID.IccCommand, cmd_data)
-        cmd_ack = struct.unpack('!B', data[:1])
-        payload = data[1:]
+        cmd_ack = struct.unpack('!B', res_data[:1])
+        payload = res_data[1:]
         if cmd_ack != command:
             raise MTException("expected ack of command 0x%02X; got 0x%02X "
                               "instead" % (command, cmd_ack))

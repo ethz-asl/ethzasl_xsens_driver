@@ -227,6 +227,13 @@ class MTDevice(object):
         data = self.write_ack(MID.ReqProductCode)
         return str(data).strip()
 
+    def GetHardwareVersion(self):
+        """Get the hardware version."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.ReqHardwareVersion)
+        major, minor = struct.unpack('!BB', data)
+        return (major, minor)
+
     def GetFirmwareRev(self):
         """Get the firmware version."""
         self._ensure_config_state()

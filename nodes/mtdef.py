@@ -275,9 +275,9 @@ class XDIGroup:
     Position = 0x5000
     GNSS = 0x7000
     AngularVelocity = 0x8000
-    GPS = 0x8800
+    GPS = 0x8800  # deprecated mk.5
     SensorComponentReadout = 0xA000
-    AnalogIn = 0xB000  # deprecated
+    AnalogIn = 0xB000  # deprecated mk.3
     Magnetic = 0xC000
     Velocity = 0xD000
     Status = 0xE000

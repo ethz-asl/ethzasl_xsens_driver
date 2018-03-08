@@ -33,8 +33,8 @@ class MTDevice(object):
             self.device = serial.Serial(port, baudrate, timeout=timeout,
                                         writeTimeout=timeout, rtscts=True,
                                         dsrdtr=True)
-        self.device.flushInput()    # flush to make sure the port is ready TODO
-        self.device.flushOutput()    # flush to make sure the port is ready TODO
+        self.device.flushInput()    # flush to make sure the port is ready
+        self.device.flushOutput()    # flush to make sure the port is ready
         # timeout for communication
         self.timeout = 100*timeout
         # state of the device
@@ -71,9 +71,9 @@ class MTDevice(object):
             pass
         self.device.write(msg)
         if self.verbose:
-            print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" %\
-                (mid, getMIDName(mid), length,
-                 ' '.join("%02X" % ord(v) for v in data))
+            print "MT: Write message id 0x%02X (%s) with %d data bytes: "\
+                  "[%s]" % (mid, getMIDName(mid), length,
+                            ' '.join("%02X" % ord(v) for v in data))
 
     def waitfor(self, size=1):
         """Get a given amount of data."""
@@ -114,8 +114,8 @@ class MTDevice(object):
                 buf.extend(self.waitfor(totlength-len(buf)))
             if 0xFF & sum(buf[1:]):
                 if self.verbose:
-                    sys.stderr.write("MT: invalid checksum; discarding data and"
-                                     " waiting for next message.\n")
+                    sys.stderr.write("MT: invalid checksum; discarding data "
+                                     "and waiting for next message.\n")
                 del buf[:buf.find(self.header)-2]
                 continue
             data = str(buf[-self.length-1:-1])
@@ -149,9 +149,9 @@ class MTDevice(object):
                                      "waiting for next message.\n")
                 continue
             if self.verbose:
-                print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"\
-                    % (mid, getMIDName(mid), length,
-                       ' '.join("%02X" % v for v in data))
+                print "MT: Got message id 0x%02X (%s) with %d data bytes: "\
+                      "[%s]" % (mid, getMIDName(mid), length,
+                                ' '.join("%02X" % v for v in data))
             if mid == MID.Error:
                 raise MTErrorMessage(data[0])
             return (mid, buf[:-1])
@@ -681,8 +681,8 @@ class MTDevice(object):
                 o['Q0'], o['Q1'], o['Q2'], o['Q3'] = struct.unpack('!'+4*ffmt,
                                                                    content)
             elif (data_id & 0x00F0) == 0x20:  # Rotation Matrix
-                o['a'], o['b'], o['c'], o['d'], o['e'], o['f'], o['g'], o['h'],\
-                    o['i'] = struct.unpack('!'+9*ffmt, content)
+                o['a'], o['b'], o['c'], o['d'], o['e'], o['f'], o['g'],\
+                    o['h'], o['i'] = struct.unpack('!'+9*ffmt, content)
             elif (data_id & 0x00F0) == 0x30:  # Euler Angles
                 o['Roll'], o['Pitch'], o['Yaw'] = struct.unpack('!'+3*ffmt,
                                                                 content)
@@ -750,9 +750,10 @@ class MTDevice(object):
                     o['min'], o['sec'], o['valid'], o['tAcc'], o['nano'],\
                     o['fixtype'], o['flags'], o['numSV'], o['lon'], o['lat'],\
                     o['height'], o['hMSL'], o['hAcc'], o['vAcc'], o['velN'],\
-                    o['velE'], o['velD'], o['gSpeed'], o['headMot'], o['sAcc'],\
-                    o['headAcc'], o['headVeh'], o['gdop'], o['pdop'],\
-                    o['tdop'], o['vdop'], o['hdop'], o['ndop'], o['edop'] = \
+                    o['velE'], o['velD'], o['gSpeed'], o['headMot'],\
+                    o['sAcc'], o['headAcc'], o['headVeh'], o['gdop'],\
+                    o['pdop'], o['tdop'], o['vdop'], o['hdop'], o['ndop'],\
+                    o['edop'] =\
                     struct.unpack('!IHBBBBBBIiBBBxiiiiIIiiiiiIIiHHHHHHH',
                                   content)
                 # scaling correction
@@ -984,9 +985,10 @@ class MTDevice(object):
             # raw GPS second
             if mode & OutputMode.RAWGPS:
                 o = {}
-                o['Press'], o['bPrs'], o['ITOW'], o['LAT'], o['LON'], o['ALT'],\
-                    o['VEL_N'], o['VEL_E'], o['VEL_D'], o['Hacc'], o['Vacc'],\
-                    o['Sacc'], o['bGPS'] = struct.unpack('!HBI6i3IB', data[:44])
+                o['Press'], o['bPrs'], o['ITOW'], o['LAT'], o['LON'],\
+                    o['ALT'], o['VEL_N'], o['VEL_E'], o['VEL_D'], o['Hacc'],\
+                    o['Vacc'], o['Sacc'], o['bGPS'] =\
+                    struct.unpack('!HBI6i3IB', data[:44])
                 data = data[44:]
                 output['RAWGPS'] = o
             # temperature
@@ -1260,8 +1262,8 @@ Configuration option:
                 "pl400fe,pa400fe,oq400fe"
 
 Synchronization settings:
-    The format follows the xsens protocol documentation. All fields are required
-    and separated by commas.
+    The format follows the xsens protocol documentation. All fields are
+    required and separated by commas.
     Note: The entire synchronization buffer is wiped every time a new one
           is set, so it is necessary to specify the settings of multiple
           lines at once.
@@ -1430,7 +1432,7 @@ def main():
     new_xkf = None
     actions = []
     verbose = False
-    sync_settings = [] # list of synchronization settings
+    sync_settings = []  # list of synchronization settings
 
     # filling in arguments
     for o, a in opts:
@@ -1534,7 +1536,8 @@ def main():
         if 'inspect' in actions:
             inspect(mt, device, baudrate)
         if 'change-baudrate' in actions:
-            print "Changing baudrate from %d to %d:" % (baudrate, new_baudrate),
+            print "Changing baudrate from %d to %d:" % (baudrate,
+                                                        new_baudrate),
             sys.stdout.flush()
             mt.ChangeBaudrate(new_baudrate)
             print " Ok"  # should we test that it was actually ok?
@@ -1571,8 +1574,8 @@ def main():
                     "legacy mode."
                 return 1
             if settings is None:
-                print "output-settings is required to configure the device in "\
-                    "legacy mode."
+                print "output-settings is required to configure the device "\
+                      "in legacy mode."
                 return 1
             print "Configuring in legacy mode",
             sys.stdout.flush()
@@ -1823,10 +1826,11 @@ def get_settings(arg):
     settings = timestamp | orient_mode | calib_mode | NED
     return settings
 
+
 def get_synchronization_settings(arg):
     """Parse command line synchronization-settings argument."""
     if arg == "clear":
-        sync_settings = [0,0,0,0,0,0,0,0]
+        sync_settings = [0, 0, 0, 0, 0, 0, 0, 0]
         return sync_settings
     else:
         # Parse each field from the argument
@@ -1852,7 +1856,7 @@ def get_UTCtime(arg):
     # If argument is now, fill the time settings with the current time
     # else fill the time settings with the specified time
     if arg == "now":
-        timestamp = datetime.datetime.utcnow() # use datetime to get microsecond
+        timestamp = datetime.datetime.utcnow()  # use datetime to get microsec
         time_settings = []
         time_settings.append(timestamp.year)
         time_settings.append(timestamp.month)
@@ -1860,8 +1864,8 @@ def get_UTCtime(arg):
         time_settings.append(timestamp.hour)
         time_settings.append(timestamp.minute)
         time_settings.append(timestamp.second)
-        time_settings.append(timestamp.microsecond*1000) # multiply by 1000 to obtain nanoseconds
-        time_settings.append(0) # default flag to 0
+        time_settings.append(timestamp.microsecond*1000)  # *1000 to get ns
+        time_settings.append(0)  # default flag to 0
         return time_settings
     else:
         # Parse each field from the argument

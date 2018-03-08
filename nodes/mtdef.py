@@ -297,9 +297,11 @@ class MTErrorMessage(MTException):
         18: "After four bus-scans still undetected Motion Trackers",
         20: "No reply to SetBID message during SetBID procedure",
         21: "Other than SetBIDAck received",
-        24: "Timer overflow - period too short to collect all data from Motion Trackers",
+        24: "Timer overflow - period too short to collect all data from "
+            "Motion Trackers",
         25: "Motion Tracker responds with other than SlaveData message",
-        26: "Total bytes of data of Motion Trackers including sample counter exceeds 255 bytes",
+        26: "Total bytes of data of Motion Trackers including sample counter "
+            "exceeds 255 bytes",
         27: "Timer overflows during measurement",
         28: "Timer overflows during measurement",
         29: "No correct response from Motion Tracker during measurement",
@@ -310,16 +312,21 @@ class MTErrorMessage(MTException):
         36: "TX PC Buffer overflow, cannot fit full message",
         37: "Wireless subsystem failed",
         40: "The device generated an error, try updating the firmware",
-        41: "The device generates more data than the bus communication can handle (baud rate may be too low)",
-        42: "The sample buffer of the device was full during a communication outage",
+        41: "The device generates more data than the bus communication can "
+            "handle (baud rate may be too low)",
+        42: "The sample buffer of the device was full during a communication "
+            "outage",
         43: "The external trigger is not behaving as configured",
-        44: "The sample stream detected an error in the ordering of sample data",
+        44: "The sample stream detected an error in the ordering of sample "
+            "data",
         45: "A dip in the power supply was detected and recovered from",
         46: "A current limiter has been activated, shutting down the device",
         47: "Device temperature is not within operational limits",
         48: "Battery level reached lower limit",
-        49: "Specified filter profile ID is not available on the device or the user is trying to duplicate an existing filter profile type",
-        50: "The settings stored in the device's non volatile memory are invalid",
+        49: "Specified filter profile ID is not available on the device or "
+            "the user is trying to duplicate an existing filter profile type",
+        50: "The settings stored in the device's non volatile memory are "
+            "invalid",
         256: "A generic error occurred",
         257: "Operation not implemented in this version (yet)",
         258: "A timeout occurred",
@@ -327,7 +334,8 @@ class MTErrorMessage(MTException):
         260: "Checksum fault occurred",
         261: "No internal memory available",
         262: "The requested item was not found",
-        263: "Unexpected message received (e.g. no acknowledge message received)",
+        263: "Unexpected message received (e.g. no acknowledge message "
+             "received)",
         264: "Invalid id supplied",
         265: "Operation is invalid at this point",
         266: "Insufficient buffer space available",
@@ -335,7 +343,8 @@ class MTErrorMessage(MTException):
         268: "The specified i/o device can not be opened",
         269: "An I/O device is already opened with this object",
         270: "End of file is reached",
-        271: "A required settings file could not be opened or is missing some data",
+        271: "A required settings file could not be opened or is missing some "
+             "data",
         272: "No data is available",
         273: "Tried to change a read-only value",
         274: "Tried to supply a NULL value where it is not allowed",
@@ -364,12 +373,16 @@ class MTErrorMessage(MTException):
         297: "A device was detected that was neither master nor slave",
         298: "No master detected",
         299: "A device is not sending enough data",
-        300: "The version of the object is too low for the requested operation",
-        301: "The object has an unrecognised version, so it's not safe to perform the operation",
-        302: "The process was aborted by an external event, usually a user action or process termination",
+        300: "The version of the object is too low for the requested "
+             "operation",
+        301: "The object has an unrecognised version, so it's not safe to "
+             "perform the operation",
+        302: "The process was aborted by an external event, usually a user "
+             "action or process termination",
         303: "The requested functionality is not supported by the device",
         304: "A packet counter value was missed",
-        305: "An error occurred while trying to put the device in measurement mode",
+        305: "An error occurred while trying to put the device in measurement "
+             "mode",
         306: "A device could not start recording",
         311: "Radio channel is in use by another system",
         312: "Motion tracker disconnected unexpectedly",
@@ -382,7 +395,8 @@ class MTErrorMessage(MTException):
 
     def __init__(self, code):
         self.code = code
-        self.message = self.ErrorCodes.get(code, 'Unknown error: 0x%02X' % code)
+        self.message = self.ErrorCodes.get(code,
+                                           'Unknown error: 0x%02X' % code)
 
     def __str__(self):
         return 'Error message 0x%02X: %s' % (self.code, self.message)

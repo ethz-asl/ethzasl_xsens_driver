@@ -619,6 +619,28 @@ class MTDevice(object):
         data = struct.pack('!i', ticks)
         self.write(MID.AdjustUTCTime, data)  # no ack mentioned in the doc
 
+    def IccCommand(self, command):
+        """Command of In-run Compass Calibration (ICC)."""
+        if command not in (0, 1, 2, 3):
+            raise MTException("unknown ICC command 0x%02X" % command)
+        cmd_data = struct.pack('!B', command)
+        res_data = self.write_ack(MID.IccCommand, cmd_data)
+        cmd_ack = struct.unpack('!B', data[:1])
+        payload = data[1:]
+        if cmd_ack != command:
+            raise MTException("expected ack of command 0x%02X; got 0x%02X "
+                              "instead" % (command, cmd_ack))
+        if cmd_ack == 0:
+            return
+        elif cmd_ack == 1:
+            ddt_value, dimension, status = struct.unpack('!fBB', payload)
+            return ddt_value, dimension, status
+        elif cmd_ack == 2:
+            return
+        elif cmd_ack == 3:
+            state = struct.unpack('!B', payload)
+            return state
+
     ############################################################
     # High-level utility functions
     ############################################################

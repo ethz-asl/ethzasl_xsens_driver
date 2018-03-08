@@ -121,8 +121,6 @@ class MID:
     SetNoRotation = 0x22
     # In-run Compass Calibration (ICC) command, 1 byte
     IccCommand = 0x74
-    # ICC results, 0-7 bytes depending on command
-    IccCommandAck = 0x75
 
 
 class DeprecatedMID:

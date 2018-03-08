@@ -568,6 +568,19 @@ class MTDevice(object):
     GetFilterProfile = GetCurrentScenario
     SetFilterProfile = SetCurrentScenario
 
+    def GetGnssPlatform(self):
+        """Get the current GNSS navigation filter settings."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetGnssPlatform)
+        platform, = struct.unpack('!H', data)
+        return platform
+
+    def SetGnssPlatform(self, platform):
+        """Set the GNSS navigation filter settings."""
+        self._ensure_config_state()
+        data = struct.pack('!H', platform)
+        self.write_ack(MID.SetGnssPlatform, data)
+
     def ResetOrientation(self, code):
         """Reset the orientation.
 

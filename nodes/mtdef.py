@@ -11,9 +11,6 @@ class DeviceState:
 
 class MID:
     """Values for the message id (MID)"""
-    # Error message, 1 data byte
-    Error = 0x42
-
     # State MID
     # Wake up procedure
     WakeUp = 0x3E
@@ -35,10 +32,16 @@ class MID:
     ReqProductCode = 0x1C
     # Product code (max 20 bytes data)
     ProductCode = 0x1D
+    # Request hardware version
+    ReqHardwareVersion = 0x1E
+    # Hardware version, 2 bytes: major minor
+    HardwareVersion = 0x1F
     # Request firmware revision
     ReqFWRev = 0x12
     # Firmware revision, 3 bytes: major minor rev
     FirmwareRev = 0x13
+    # Error message, 1 data byte
+    Error = 0x42
 
     # Device specific messages
     # Restore factory defaults
@@ -49,6 +52,8 @@ class MID:
     RunSelftest = 0x24
     # Self test results, 2 bytes
     SelftestAck = 0x25
+    # GNSS platform setting, 2 bytes (only MTi-G-700/710 with FW1.7 or higher)
+    SetGnssPlatform = 0x76
     # Error mode, 2 bytes, 0000, 0001, 0002, 0003 (default 0001)
     SetErrorMode = 0xDA
     # Transmit delay (RS485), 2 bytes, number of clock ticks (1/29.4912 MHz)
@@ -81,6 +86,8 @@ class MID:
     SetOutputMode = 0xD0
     # Output settings (MTi/MTi-G only), 4 bytes
     SetOutputSettings = 0xD2
+    # Skip factor (MTi/MTi-G only), 2 bytes
+    SetOutputSkipFactor = 0xD4
 
     # Data messages
     # Request MTData message (for 65535 skip factor)
@@ -100,11 +107,11 @@ class MID:
     # UTC Time (MTI-G and MTi-10/100 series), 12 bytes
     UTCTime = 0x61
     # Request the available XKF scenarios on the device
-    ReqAvailableScenarios = 0x62
+    ReqAvailableFilterProfiles = ReqAvailableScenarios = 0x62
     # Available Scenarios
-    AvailableScenarios = 0x63
+    AvailableFilterProfiles = AvailableScenarios = 0x63
     # Current XKF scenario, 2 bytes
-    SetCurrentScenario = 0x64
+    SetFilterProfile = SetCurrentScenario = 0x64
     # Magnitude of the gravity used for the sensor fusion mechanism, 4 bytes
     SetGravityMagnitude = 0x66
     # Latitude, Longitude and Altitude for local declination and gravity
@@ -112,6 +119,10 @@ class MID:
     SetLatLonAlt = 0x6E
     # Initiate No Rotation procedure (not on MTi-G), 2 bytes
     SetNoRotation = 0x22
+    # In-run Compass Calibration (ICC) command, 1 byte
+    IccCommand = 0x74
+    # ICC results, 0-7 bytes depending on command
+    IccCommandAck = 0x75
 
 
 class DeprecatedMID:

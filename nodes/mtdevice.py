@@ -558,10 +558,15 @@ class MTDevice(object):
         return self.scenario_id
 
     def SetCurrentScenario(self, scenario_id):
-        """Sets the XKF scenario to use."""
+        """Set the XKF scenario to use."""
         self._ensure_config_state()
         data = struct.pack('!BB', 0, scenario_id)  # version, id
         self.write_ack(MID.SetCurrentScenario, data)
+
+    # New names in mk5
+    GetAvailableFilterProfiles = GetAvailableScenarios
+    GetFilterProfile = GetCurrentScenario
+    SetFilterProfile = SetCurrentScenario
 
     def ResetOrientation(self, code):
         """Reset the orientation.

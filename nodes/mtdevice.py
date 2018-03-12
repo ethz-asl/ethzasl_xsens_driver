@@ -1224,9 +1224,9 @@ Commands:
     -v, --verbose
         Verbose output.
     -y, --synchronization=settings (see below)
-        Configure the synchronization settings of each sync line (see below)
-    -u, --setUTCTime=time (see below)
-        Sets the UTC time buffer of the device
+        Configure the synchronization settings of each sync line (see below).
+    -u, --utc-time=time (see below)
+        Set the UTC time buffer of the device.
 
 Generic options:
     -d, --device=DEV
@@ -1372,7 +1372,7 @@ Synchronization settings:
         To clear the synchronization settings of MTi
         ./mtdevice.py -y clear
 
-SetUTCTime settings:
+UTC time settings:
     There are two ways to set the UTCtime for the MTi.
     Option #1: set MTi to the current UTC time based on local system time with
                the option 'now'
@@ -1389,7 +1389,7 @@ SetUTCTime settings:
                 1: Valid Time of Week
                 2: Valid Week Number
                 4: valid UTC
-            Note: the flag is ignored for setUTCTime as it is set by the module
+            Note: the flag is ignored for --utc-time as it is set by the device
                   itself when connected to a GPS
 
     Examples:
@@ -1903,6 +1903,7 @@ def get_synchronization_settings(arg):
 
 
 def get_UTCtime(arg):
+    """Parse command line UTC time specification."""
     # If argument is now, fill the time settings with the current time
     # else fill the time settings with the specified time
     if arg == "now":

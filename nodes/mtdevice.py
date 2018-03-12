@@ -1227,6 +1227,12 @@ Commands:
         Configure the synchronization settings of each sync line (see below).
     -u, --utc-time=time (see below)
         Set the UTC time buffer of the device.
+    -g, --gnss-platform=platform
+        Change the GNSS navigation filter settings (check the documentation).
+    -o, --option-flags=flags (see below)
+        Set the option flags.
+    -j, --icc-command=command (see below)
+        Send command to the In-run Compass Calibration.
 
 Generic options:
     -d, --device=DEV
@@ -1397,6 +1403,48 @@ UTC time settings:
         ./mtdevice.py -u now
         ./mtdevice.py -u 1999,1,1,0,0,0,0,0
 
+GNSS platform settings:
+    Only for MTi-G-700/710 with firmware>=1.7.
+    The following two platform settings are listed in the documentation:
+        0:  Portable
+        8:  Airbone <4g
+    Check the XSens documentation before changing anything.
+
+Option flags:
+    Several flags can be set or cleared.
+    0x00000001  DisableAutoStore: when set, configuration changes are not saved
+                    in non-volatile memory (only MTi-1 series)
+    0x00000002  DisableAutoMeasurement: when set, device will stay in Config
+                    Mode upon start up (only MTi-1 series)
+    0x00000004  EnableBeidou: when set, enable Beidou and disable GLONASS (only
+                    MTi-G-710)
+    0x00000010  EnableAHS: enable Active Heading Stabilization (overrides
+                    magnetic reference)
+    0x00000080  EnableInRunCompassCalibration: doc is unclear
+    The flags provided must be a pair of ored values: the first for flags to be
+    set the second for the flags to be cleared.
+    Examples:
+        Only set DisableAutoStore and DisableAutoMeasurement flags:
+            ./mtdevice.py -o 0x03,0x00
+        Disable AHS (clear EnableAHS flag):
+            ./mtdevice.py -o 0x00,0x10
+        Set DisableAutoStore and clear DisableAutoMeasurement:
+            ./mtdevice.py -o 0x02,0x01
+
+In-run Compass Calibration commands:
+    The idea of ICC is to record magnetic field data during so-called
+    representative motion in order to better calibrate the magnetometer and
+    improve the fusion.
+    Typical usage would be to issue the start command, then move the device
+    for some time then issue the stop command. If parameters are acceptable,
+    these can be stored using the store command.
+    Commands:
+        00: Start representative motion
+        01: Stop representative motion; return ddt, dimension, and status.
+        02: Store ICC parameters
+        03: Get representative motion state; return 1 if active
+    Check the documentation for more details.
+
 Legacy options:
     -m, --output-mode=MODE
         Legacy mode of the device to select the information to output.
@@ -1459,12 +1507,13 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:c:eild:b:y:u:m:s:p:f:x:v'
+    shopts = 'hra:c:eild:b:m:s:p:f:x:vy:u:g:o:j:'
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
              'deprecated-skip-factor=', 'xkf-scenario=', 'verbose',
-             'synchronization=', 'setUTCtime=']
+             'synchronization=', 'utc-time=', 'gnss-platform=',
+             'option-flags=', 'icc-command=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1557,6 +1606,21 @@ def main():
                 return 1
         elif o in ('-v', '--verbose'):
             verbose = True
+        elif o in ('-g', '--gnss-platform'):
+            platform = get_gnss_platform(a)
+            if platform is None:
+                return 1
+            actions.append('gnss-platform')
+        elif o in ('-o', '--option-flags'):
+            flag_tuple = get_option_flags(a)
+            if flag_tuple is None:
+                return 1
+            actions.append('option-flags')
+        elif o in ('-j', '--icc-command'):
+            icc_command = get_icc_command(a)
+            if icc_command is None:
+                return 1
+            actions.append('icc-command')
     # if nothing else: echo
     if len(actions) == 0:
         actions.append('echo')
@@ -1618,6 +1682,36 @@ def main():
                           UTCtime_settings[5],
                           UTCtime_settings[7])
             print " Ok"  # should we test that it was actually ok?
+        if 'gnss-platform' in actions:
+            print "Setting GNSS platform",
+            sys.stdout.flush()
+            mt.SetGnssPlatform(platform)
+            print " Ok"  # should we test that it was actually ok?
+        if 'option-flags' in actions:
+            print "Setting option flags",
+            sys.stdout.flush()
+            mt.SetOptionFlags(*flag_tuple)
+            print " Ok"  # should we test that it was actually ok?
+        if 'icc-command' in actions:
+            icc_command_names = {
+                    0: 'start representative motion',
+                    1: 'stop representative motion',
+                    2: 'store ICC results',
+                    3: 'representative motion state'}
+            print "Sending ICC command 0x%02X (%s):" % (
+                    icc_command, icc_command_names[icc_command]),
+            sys.stdout.flush()
+            res = mt.IccCommand(icc_command)
+            if icc_command == 0x00:
+                print " Ok"  # should we test that it was actually ok?
+            elif icc_command == 0x01:
+                print res
+            elif icc_command == 0x02:
+                print " Ok"  # should we test that it was actually ok?
+            elif icc_command == 0x03:
+                res_string = {0: 'representative motion inactive',
+                              1: 'representation motion active'}
+                print "0x02X (%s)" % (res, res_string.get(res, 'unknown'))
         if 'legacy-configure' in actions:
             if mode is None:
                 print "output-mode is require to configure the device in "\
@@ -1691,6 +1785,7 @@ def inspect(mt, device, baudrate):
     print "Device: %s at %d Bd:" % (device, baudrate)
     try_message("device ID:", mt.GetDeviceID, hex_fmt(4))
     try_message("product code:", mt.GetProductCode)
+    try_message("hardware version:", mt.GetHardwareVersion)
     try_message("firmware revision:", mt.GetFirmwareRev)
     try_message("baudrate:", mt.GetBaudrate)
     try_message("error mode:", mt.GetErrorMode, hex_fmt(2))
@@ -1711,6 +1806,7 @@ def inspect(mt, device, baudrate):
     try_message("extended output mode:", mt.GetExtOutputMode, hex_fmt(2))
     try_message("output settings:", mt.GetOutputSettings, hex_fmt(4))
     try_message("GPS coordinates (lat, lon, alt):", mt.GetLatLonAlt)
+    try_message("GNSS platform:", mt.GetGnssPlatform)
     try_message("available scenarios:", mt.GetAvailableScenarios)
     try_message("current scenario ID:", mt.GetCurrentScenario)
     try_message("UTC time:", mt.GetUTCTime)
@@ -1939,6 +2035,44 @@ def get_UTCtime(arg):
         else:
             print "Invalid UTCtime settings."
             return
+
+
+def get_gnss_platform(arg):
+    """Parse and check command line GNSS platform argument."""
+    try:
+        platform = int(arg)
+    except ValueError:
+        print "GNSS platform must be an integer."
+        return
+    if platform in (0, 8):
+        return platform
+    else:
+        print "Invalid GNSS platform argument (excepted 0 or 8)."
+        return
+
+
+def get_option_flags(arg):
+    """Parse and check command line option flags argument."""
+    try:
+        set_flag, clear_flag = map(lambda s: int(s.strip(), base=0),
+                                   arg.split(','))
+        return (set_flag, clear_flag)
+    except ValueError:
+        print 'incorrect option flags specification (expected a pair of '\
+              'values)'
+        return
+
+
+def get_icc_command(arg):
+    """Parse and check ICC command argument."""
+    try:
+        icc_command = int(arg, base=0)
+        if icc_command not in range(4):
+            raise ValueError
+        return icc_command
+    except ValueError:
+        print 'invalid ICC command "%s"; expected 0, 1, 2, or 3.' % arg
+        return
 
 
 if __name__ == '__main__':

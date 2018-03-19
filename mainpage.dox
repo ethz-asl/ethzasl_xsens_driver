@@ -2,7 +2,7 @@
 \mainpage
 \htmlinclude manifest.html
 
-The \b xsens_driver package provides \b mtnode.py, a generic ROS node publishing the data streamed by an XSens imu (MT, MTi, MTi-G...).
+The \b xsens_driver package provides \b mtnode.py, a generic ROS node publishing the data streamed by an XSens motion tracker (MT, MTi, MTi-G...) from third, fourth or fifth generation.
 
 \section topics Topics
 
@@ -68,6 +68,16 @@ Commands:
         below).
     -v, --verbose
         Verbose output.
+    -y, --synchronization=settings (see below)
+        Configure the synchronization settings of each sync line (see below).
+    -u, --utc-time=time (see below)
+        Set the UTC time buffer of the device.
+    -g, --gnss-platform=platform
+        Change the GNSS navigation filter settings (check the documentation).
+    -o, --option-flags=flags (see below)
+        Set the option flags.
+    -j, --icc-command=command (see below)
+        Send command to the In-run Compass Calibration.
 
 Generic options:
     -d, --device=DEV
@@ -152,6 +162,134 @@ Configuration option:
             For longitude, latitude, altitude and orientation (on MTi-G-700):
                 "pl400fe,pa400fe,oq400fe"
 
+Synchronization settings:
+    The format follows the xsens protocol documentation. All fields are
+    required and separated by commas.
+    Note: The entire synchronization buffer is wiped every time a new one
+          is set, so it is necessary to specify the settings of multiple
+          lines at once.
+    It also possible to clear the synchronization with the argument "clear"
+
+        Function (see manual for details):
+             3 Trigger indication
+             4 Interval Transition Measurement
+             8 SendLatest
+             9 ClockBiasEstimation
+            11 StartSampling
+        Line (manual for details):
+            0 ClockIn
+            1 GPSClockIn (only available for 700/710)
+            2 Input Line (SyncIn)
+            4 SyncOut
+            5 ExtTimepulseIn (only available for 700/710)
+            6 Software (only available for SendLatest with ReqData message)
+        Polarity:
+            1 Positive pulse/ Rising edge
+            2 Negative pulse/ Falling edge
+            3 Both/ Toggle
+        Trigger Type:
+            0 multiple times
+            1 once
+        Skip First (unsigned_int):
+            Number of initial events to skip before taking actions
+        Skip Factor (unsigned_int):
+            Number of events to skip before taking action again
+            Ignored with ReqData.
+        Pulse Width (unsigned_int):
+            Ignored for SyncIn.
+            For SyncOut, the width of the generated pulse in 100 microseconds
+            unit. Ignored for Toggle pulses.
+        Delay:
+            Delay after receiving a sync pulse to taking action,
+            100 microseconds units, range [0...600000]
+        Clock Period:
+            Reference clock period in milliseconds for ClockBiasEstimation
+        Offset:
+            Offset from event to pulse generation.
+            100 microseconds unit, range [-30000...+30000]
+
+    Examples:
+        For changing the sync setting of the SyncIn line to trigger indication
+        with rising edge, one time triggering and no skipping and delay. Enter
+        the settings as:
+            "3,2,1,1,0,0,0,0"
+
+        Note a number is still in the place for pulse width despite it being
+        ignored.
+
+        To set multiple lines at once:
+        ./mtdevice.py -y 3,2,1,0,0,0,0,0 -y 9,0,1,0,0,0,10,0
+
+        To clear the synchronization settings of MTi
+        ./mtdevice.py -y clear
+
+UTC time settings:
+    There are two ways to set the UTCtime for the MTi.
+    Option #1: set MTi to the current UTC time based on local system time with
+               the option 'now'
+    Option #2: set MTi to a specified UTC time
+        The time fields are set as follows:
+            year: range [1999,2099]
+            month: range [1,12]
+            day: day of the month, range [1,31]
+            hour: hour of the day, range [0,23]
+            min: minute of the hour, range [0,59]
+            sec: second of the minute, range [0,59]
+            ns: nanosecond of the second, range [0,1000000000]
+            flag:
+                1: Valid Time of Week
+                2: Valid Week Number
+                4: valid UTC
+            Note: the flag is ignored for --utc-time as it is set by the device
+                  itself when connected to a GPS
+
+    Examples:
+        Set UTC time for the device:
+        ./mtdevice.py -u now
+        ./mtdevice.py -u 1999,1,1,0,0,0,0,0
+
+GNSS platform settings:
+    Only for MTi-G-700/710 with firmware>=1.7.
+    The following two platform settings are listed in the documentation:
+        0:  Portable
+        8:  Airbone <4g
+    Check the XSens documentation before changing anything.
+
+Option flags:
+    Several flags can be set or cleared.
+    0x00000001  DisableAutoStore: when set, configuration changes are not saved
+                    in non-volatile memory (only MTi-1 series)
+    0x00000002  DisableAutoMeasurement: when set, device will stay in Config
+                    Mode upon start up (only MTi-1 series)
+    0x00000004  EnableBeidou: when set, enable Beidou and disable GLONASS (only
+                    MTi-G-710)
+    0x00000010  EnableAHS: enable Active Heading Stabilization (overrides
+                    magnetic reference)
+    0x00000080  EnableInRunCompassCalibration: doc is unclear
+    The flags provided must be a pair of ored values: the first for flags to be
+    set the second for the flags to be cleared.
+    Examples:
+        Only set DisableAutoStore and DisableAutoMeasurement flags:
+            ./mtdevice.py -o 0x03,0x00
+        Disable AHS (clear EnableAHS flag):
+            ./mtdevice.py -o 0x00,0x10
+        Set DisableAutoStore and clear DisableAutoMeasurement:
+            ./mtdevice.py -o 0x02,0x01
+
+In-run Compass Calibration commands:
+    The idea of ICC is to record magnetic field data during so-called
+    representative motion in order to better calibrate the magnetometer and
+    improve the fusion.
+    Typical usage would be to issue the start command, then move the device
+    for some time then issue the stop command. If parameters are acceptable,
+    these can be stored using the store command.
+    Commands:
+        00: Start representative motion
+        01: Stop representative motion; return ddt, dimension, and status.
+        02: Store ICC parameters
+        03: Get representative motion state; return 1 if active
+    Check the documentation for more details.
+
 Legacy options:
     -m, --output-mode=MODE
         Legacy mode of the device to select the information to output.
@@ -178,6 +316,7 @@ Legacy options:
         characters (in any order):
             t  sample count (excludes 'n')
             n  no sample count (excludes 't')
+            u  UTC time
             q  orientation in quaternion (excludes 'e' and 'm')
             e  orientation in Euler angles (excludes 'm' and 'q')
             m  orientation in matrix (excludes 'q' and 'e')

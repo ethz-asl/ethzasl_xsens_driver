@@ -43,7 +43,7 @@ def get_param_list(name, default):
 
 def matrix_from_diagonal(diagonal):
     n = len(diagonal)
-    matrix = [] * n * n
+    matrix = [0] * n * n
     for i in range(0, n):
         matrix[i*n + i] = diagonal(i)
     return tuple(matrix)

@@ -45,7 +45,7 @@ def matrix_from_diagonal(diagonal):
     n = len(diagonal)
     matrix = [0] * n * n
     for i in range(0, n):
-        matrix[i*n + i] = diagonal(i)
+        matrix[i*n + i] = diagonal[i]
     return tuple(matrix)
 
 

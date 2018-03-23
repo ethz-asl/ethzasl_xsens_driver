@@ -95,7 +95,7 @@ class XSensDriver(object):
             get_param_list('~linear_acceleration_covariance_diagonal', [0.0004] * 3)
         )
         self.orientation_covariance = matrix_from_diagonal(
-            get_param_list("~orientation_covariance", [radians(1.), radians(1.), radians(9.)])
+            get_param_list("~orientation_covariance_diagonal", [radians(1.), radians(1.), radians(9.)])
         )
 
         self.diag_msg = DiagnosticArray()

@@ -18,8 +18,8 @@
 		<param name="frame_id" value="$(arg frame_id)"/>
 		<param name="frame_local" value="$(arg frame_local)"/>
 		<param name="no_rotation_duration" value="$(arg no_rotation_duration)"/>
-		<param name="angular_velocity_covariance_diagonal" value="$(arg angular_velocity_covariance_diagonal)"/>
-		<param name="linear_acceleration_covariance_diagonal" value="$(arg linear_acceleration_covariance_diagonal)"/>
-		<param name="orientation_covariance_diagonal" value="$(arg orientation_covariance_diagonal)"/>
+		<rosparam param="angular_velocity_covariance_diagonal" subst_value="True">$(arg angular_velocity_covariance_diagonal)</rosparam>
+		<rosparam param="linear_acceleration_covariance_diagonal" subst_value="True">$(arg linear_acceleration_covariance_diagonal)</rosparam>
+		<rosparam param="orientation_covariance_diagonal" subst_value="True">$(arg orientation_covariance_diagonal)</rosparam>
 	</node>
 </launch>

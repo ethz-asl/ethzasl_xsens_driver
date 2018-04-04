@@ -425,8 +425,8 @@ class MTDevice(object):
         self._ensure_config_state()
         data = struct.pack('!B', parameter)
         data = self.write_ack(MID.SetAlignmentRotation, data)
-        q0, q1, q2, q3 = struct.unpack('!ffff', data)
-        return q0, q1, q2, q3
+        param, q0, q1, q2, q3 = struct.unpack('!Bffff', data)
+        return param, (q0, q1, q2, q3)
 
     def SetAlignmentRotation(self, parameter, quaternion):
         """Set the object alignment.

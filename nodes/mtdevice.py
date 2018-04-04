@@ -69,7 +69,10 @@ class MTDevice(object):
         start = time.time()
         while ((time.time()-start) < self.timeout) and self.device.read():
             pass
-        self.device.write(msg)
+        try:
+            self.device.write(msg)
+        except serial.serialutil.SerialTimeoutException:
+            raise MTTimeoutException("writing message")
         if self.verbose:
             print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" %\
                 (mid, getMIDName(mid), length,

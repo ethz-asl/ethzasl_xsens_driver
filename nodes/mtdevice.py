@@ -1106,13 +1106,13 @@ class MTDevice(object):
 ################################################################
 # Auto detect port
 ################################################################
-def find_devices(verbose=False):
+def find_devices(timeout=0.002, verbose=False):
     mtdev_list = []
     for port in glob.glob("/dev/tty*S*"):
         if verbose:
             print "Trying '%s'" % port
         try:
-            br = find_baudrate(port, verbose)
+            br = find_baudrate(port, timeout, verbose)
             if br:
                 mtdev_list.append((port, br))
         except MTException:
@@ -1123,14 +1123,14 @@ def find_devices(verbose=False):
 ################################################################
 # Auto detect baudrate
 ################################################################
-def find_baudrate(port, verbose=False):
+def find_baudrate(port, timeout=0.002, verbose=False):
     baudrates = (115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
     for br in baudrates:
         if verbose:
             print "Trying %d bd:" % br,
             sys.stdout.flush()
         try:
-            mt = MTDevice(port, br, verbose=verbose)
+            mt = MTDevice(port, br, timeout=timeout, verbose=verbose)
         except serial.SerialException:
             if verbose:
                 print "fail: unable to open device."
@@ -1187,6 +1187,8 @@ Generic options:
     -b, --baudrate=BAUD
         Baudrate of serial interface (default: 115200). If 0, then all
         rates are tried until a suitable one is found.
+    -t, --timeout=TIMEOUT
+        Timeout of serial communication in second (default: 0.002).
 
 Configuration option:
     OUTPUT
@@ -1410,12 +1412,12 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:c:eild:b:y:u:m:s:p:f:x:v'
+    shopts = 'hra:c:eild:b:y:u:m:s:p:f:x:vt:'
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
              'deprecated-skip-factor=', 'xkf-scenario=', 'verbose',
-             'synchronization=', 'setUTCtime=']
+             'synchronization=', 'setUTCtime=', 'timeout']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1425,6 +1427,7 @@ def main():
     # default values
     device = '/dev/ttyUSB0'
     baudrate = 115200
+    timeout = 0.002
     mode = None
     settings = None
     period = None
@@ -1508,12 +1511,18 @@ def main():
                 return 1
         elif o in ('-v', '--verbose'):
             verbose = True
+        elif o in ('-t', '--timeout'):
+            try:
+                timeout = float(a)
+            except ValueError:
+                print "timeout argument must be a floating number."
+                return 1
     # if nothing else: echo
     if len(actions) == 0:
         actions.append('echo')
     try:
         if device == 'auto':
-            devs = find_devices(verbose)
+            devs = find_devices(timeout=timeout, verbose=verbose)
             if devs:
                 print "Detected devices:", "".join('\n\t%s @ %d' % (d, p)
                                                    for d, p in devs)
@@ -1524,13 +1533,13 @@ def main():
                 return 1
         # find baudrate
         if not baudrate:
-            baudrate = find_baudrate(device, verbose)
+            baudrate = find_baudrate(device, timeout=timeout, verbose=verbose)
         if not baudrate:
             print "No suitable baudrate found."
             return 1
         # open device
         try:
-            mt = MTDevice(device, baudrate, verbose=verbose)
+            mt = MTDevice(device, baudrate, timeout=timeout, verbose=verbose)
         except serial.SerialException:
             raise MTException("unable to open %s" % device)
         # execute actions

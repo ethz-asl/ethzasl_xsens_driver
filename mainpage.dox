@@ -34,6 +34,9 @@ The nodes can take the following parameters:
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
 - \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED, or \c NWU).
 - \a ~no_rotation_duration (0): the int duration in seconds of the no-rotation calibration procedure at the start of the node (only for mark iv devices). If 0, the procedure is not launched.
+- \a ~angular_velocity_covariance_diagonal ([0.0004, 0.0004, 0.0004]) diagonal elements of the covariance matrix on the angular velocity published on the \c /imu/data topic. 
+- \a ~linear_acceleration_covariance_diagonal ([0.0004, 0.0004, 0.0004]) diagonal elements of the covariance matrix on the linear acceleration published on the \c /imu/data topic. 
+- \a ~orientation_covariance_diagonal ([0.01745, 0.01745, 0.15708]) diagonal elements of the covariance matrix on the orientation published on the \c /imu/data topic. 
 
 \section dialout Permissions
 

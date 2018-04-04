@@ -2,6 +2,7 @@
 import roslib; roslib.load_manifest('xsens_driver')
 import rospy
 import select
+import sys
 
 import mtdevice
 import mtdef
@@ -30,6 +31,22 @@ def get_param(name, default):
         rospy.logwarn("Cannot find value for parameter: %s, assigning "
                       "default: %s" % (name, str(v)))
     return v
+
+
+def get_param_list(name, default):
+    value = get_param(name, default)
+    if len(default) != len(value):
+        rospy.logfatal("Parameter %s should be a list of size %d", name, len(default))
+        sys.exit(1)
+    return value
+
+
+def matrix_from_diagonal(diagonal):
+    n = len(diagonal)
+    matrix = [0] * n * n
+    for i in range(0, n):
+        matrix[i*n + i] = diagonal[i]
+    return tuple(matrix)
 
 
 class XSensDriver(object):
@@ -70,6 +87,16 @@ class XSensDriver(object):
         self.frame_id = get_param('~frame_id', '/base_imu')
 
         self.frame_local = get_param('~frame_local', 'ENU')
+
+        self.angular_velocity_covariance = matrix_from_diagonal(
+            get_param_list('~angular_velocity_covariance_diagonal', [radians(0.025)] * 3)
+        )
+        self.linear_acceleration_covariance = matrix_from_diagonal(
+            get_param_list('~linear_acceleration_covariance_diagonal', [0.0004] * 3)
+        )
+        self.orientation_covariance = matrix_from_diagonal(
+            get_param_list("~orientation_covariance_diagonal", [radians(1.), radians(1.), radians(9.)])
+        )
 
         self.diag_msg = DiagnosticArray()
         self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
@@ -264,10 +291,7 @@ class XSensDriver(object):
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
-                self.imu_msg.angular_velocity_covariance = (
-                    radians(0.025), 0., 0.,
-                    0., radians(0.025), 0.,
-                    0., 0., radians(0.025))
+                self.imu_msg.angular_velocity_covariance = self.angular_velocity_covariance
                 self.pub_vel = True
                 self.vel_msg.twist.angular.x = x
                 self.vel_msg.twist.angular.y = y
@@ -281,9 +305,7 @@ class XSensDriver(object):
                 self.imu_msg.linear_acceleration.x = x
                 self.imu_msg.linear_acceleration.y = y
                 self.imu_msg.linear_acceleration.z = z
-                self.imu_msg.linear_acceleration_covariance = (0.0004, 0., 0.,
-                                                               0., 0.0004, 0.,
-                                                               0., 0., 0.0004)
+                self.imu_msg.linear_acceleration_covariance = self.linear_acceleration_covariance
             except KeyError:
                 pass
             try:
@@ -314,9 +336,7 @@ class XSensDriver(object):
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z
             self.imu_msg.orientation.w = w
-            self.imu_msg.orientation_covariance = (radians(1.), 0., 0.,
-                                                   0., radians(1.), 0.,
-                                                   0., 0., radians(9.))
+            self.imu_msg.orientation_covariance = self.orientation_covariance
 
         def fill_from_Auxiliary(aux_data):
             '''Fill messages with information from 'Auxiliary' MTData block.'''
@@ -445,9 +465,7 @@ class XSensDriver(object):
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z
             self.imu_msg.orientation.w = w
-            self.imu_msg.orientation_covariance = (radians(1.), 0., 0.,
-                                                   0., radians(1.), 0.,
-                                                   0., 0., radians(9.))
+            self.imu_msg.orientation_covariance = self.orientation_covariance
 
         def fill_from_Pressure(o):
             '''Fill messages with information from 'Pressure' MTData2 block.'''
@@ -476,9 +494,7 @@ class XSensDriver(object):
             self.imu_msg.linear_acceleration.x = x
             self.imu_msg.linear_acceleration.y = y
             self.imu_msg.linear_acceleration.z = z
-            self.imu_msg.linear_acceleration_covariance = (0.0004, 0., 0.,
-                                                           0., 0.0004, 0.,
-                                                           0., 0., 0.0004)
+            self.imu_msg.linear_acceleration_covariance = self.linear_acceleration_covariance
 
         def fill_from_Position(o):
             '''Fill messages with information from 'Position' MTData2 block.'''
@@ -566,10 +582,7 @@ class XSensDriver(object):
                     self.imu_msg.angular_velocity.x = x
                     self.imu_msg.angular_velocity.y = y
                     self.imu_msg.angular_velocity.z = z
-                    self.imu_msg.angular_velocity_covariance = (
-                        radians(0.025), 0., 0.,
-                        0., radians(0.025), 0.,
-                        0., 0., radians(0.025))
+                    self.imu_msg.angular_velocity_covariance = self.angular_velocity_covariance
                     self.pub_imu = True
                     self.vel_msg.twist.angular.x = x
                     self.vel_msg.twist.angular.y = y
@@ -583,10 +596,7 @@ class XSensDriver(object):
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
-                self.imu_msg.angular_velocity_covariance = (
-                    radians(0.025), 0., 0.,
-                    0., radians(0.025), 0.,
-                    0., 0., radians(0.025))
+                self.imu_msg.angular_velocity_covariance = self.angular_velocity_covariance
                 self.pub_imu = True
                 self.vel_msg.twist.angular.x = x
                 self.vel_msg.twist.angular.y = y

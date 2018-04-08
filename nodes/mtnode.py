@@ -5,6 +5,7 @@ import select
 import sys
 
 import mtdevice
+from mtdevice import get_synchronization_settings
 import mtdef
 
 from std_msgs.msg import Header, String, UInt16
@@ -49,7 +50,7 @@ def matrix_from_diagonal(diagonal):
     return tuple(matrix)
 
 
-class XSensDriver(object):
+class XSensNode(object):
 
     def __init__(self):
         device = get_param('~device', 'auto')
@@ -74,6 +75,13 @@ class XSensDriver(object):
 
         rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
         self.mt = mtdevice.MTDevice(device, baudrate, timeout)
+
+        # Set sychronization settings
+        sync_settings = get_param('~synchronization', 'clear')
+        sync_settings = get_synchronization_settings(sync_settings)
+        print "Changing synchronization settings"
+        self.mt.SetSyncSettings(sync_settings)
+        print "Ok"  # should we test that it was actually ok?
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)
@@ -774,7 +782,7 @@ class XSensDriver(object):
 def main():
     '''Create a ROS node and instantiate the class.'''
     rospy.init_node('xsens_driver')
-    driver = XSensDriver()
+    driver = XSensNode()
     driver.spin()
 
 

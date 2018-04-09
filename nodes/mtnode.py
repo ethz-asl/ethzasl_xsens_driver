@@ -79,9 +79,8 @@ class XSensNode(object):
         # Set sychronization settings
         sync_settings = get_param('~synchronization', 'clear')
         sync_settings = get_synchronization_settings(sync_settings)
-        print "Changing synchronization settings"
-        self.mt.SetSyncSettings(sync_settings)
-        print "Ok"  # should we test that it was actually ok?
+        rospy.loginfo("Configuring Xsens IMU synchronization settings to " + str(sync_settings))
+        self.mt.SetSyncSettings([sync_settings])
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)

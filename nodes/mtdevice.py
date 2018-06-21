@@ -425,8 +425,16 @@ class MTDevice(object):
         self._ensure_config_state()
         data = struct.pack('!B', parameter)
         data = self.write_ack(MID.SetAlignmentRotation, data)
-        param, q0, q1, q2, q3 = struct.unpack('!Bffff', data)
-        return param, (q0, q1, q2, q3)
+        if len(data) == 16:  # fix for older firmwares
+            q0, q1, q2, q3 = struct.unpack('!ffff', data)
+            return parameter, (q0, q1, q2, q3)
+        elif len(data) == 17:
+            param, q0, q1, q2, q3 = struct.unpack('!Bffff', data)
+            return param, (q0, q1, q2, q3)
+        else:
+            raise MTException('Could not parse ReqAlignmentRotationAck message:'
+                              ' wrong size of message (%d instead of either 16 '
+                              'or 17).' % len(data))
 
     def SetAlignmentRotation(self, parameter, quaternion):
         """Set the object alignment.

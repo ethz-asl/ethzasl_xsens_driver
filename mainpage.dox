@@ -8,9 +8,10 @@ The \b xsens_driver package provides \b mtnode.py, a generic ROS node publishing
 
 The ROS node is a wrapper around the \b mtdevice::MTDevice class. It can publish the following topics, depending on the configuration of the device:
 - \c /imu/data (<a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/Imu.html">sensor_msgs::Imu</a>): orientation, angular velocity, linear acceleration,
-- \c /fix (<a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/NavSatFix.html">sensor_msgs::NavSatFix</a>): longitude, latitude, altitude (from GPS only for MTi-G),
+- \c /fix (<a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/NavSatFix.html">sensor_msgs::NavSatFix</a>): longitude, latitude, altitude (from filtered/fused GPS and IMU),
+- \c /raw_fix (<a href="http://www.ros.org/doc/api/sensor_msgs/html/msg/NavSatFix.html">sensor_msgs::NavSatFix</a>): longitude, latitude, altitude (from ONLY GPS),
 - \c /fix_extended (<a href="http://www.ros.org/doc/api/gps_common/html/msg/GPSFix.html">gps_common::GPSFix</a>): more complete GPS information than \c /fix,
-- \c /velocity (<a href="http://www.ros.org/doc/api/geometry_msgs/html/msg/TwistStamped.html">geometry_msgs::TwistStamped</a>): linear and angular velocity,
+- \c /velocity (<a href="http://www.ros.org/doc/api/geometry_msgs/html/msg/TwistStamped.html">geometry_msgs::TwistStamped</a>): angular velocity is in body frame, linear velocity is in world frame and fused with GPS measurement.
 - \c /magnetic (<a href="http://www.ros.org/doc/api/geometry_msgs/html/msg/Vector3Stamped.html">geometry_msgs::Vector3Stamped</a>): direction of magnetic field,
 - \c /temperature (<a href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): temperature,
 - \c /pressure (<a href="http://www.ros.org/doc/api/std_msgs/html/msg/Float32.html">std_msgs::Float32</a>): pressure,
@@ -34,9 +35,9 @@ The nodes can take the following parameters:
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
 - \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED, or \c NWU).
 - \a ~no_rotation_duration (0): the int duration in seconds of the no-rotation calibration procedure at the start of the node (only for mark iv devices). If 0, the procedure is not launched.
-- \a ~angular_velocity_covariance_diagonal ([0.0004, 0.0004, 0.0004]) diagonal elements of the covariance matrix on the angular velocity published on the \c /imu/data topic. 
-- \a ~linear_acceleration_covariance_diagonal ([0.0004, 0.0004, 0.0004]) diagonal elements of the covariance matrix on the linear acceleration published on the \c /imu/data topic. 
-- \a ~orientation_covariance_diagonal ([0.01745, 0.01745, 0.15708]) diagonal elements of the covariance matrix on the orientation published on the \c /imu/data topic. 
+- \a ~angular_velocity_covariance_diagonal ([0.0004, 0.0004, 0.0004]) diagonal elements of the covariance matrix on the angular velocity published on the \c /imu/data topic.
+- \a ~linear_acceleration_covariance_diagonal ([0.0004, 0.0004, 0.0004]) diagonal elements of the covariance matrix on the linear acceleration published on the \c /imu/data topic.
+- \a ~orientation_covariance_diagonal ([0.01745, 0.01745, 0.15708]) diagonal elements of the covariance matrix on the orientation published on the \c /imu/data topic.
 
 \section dialout Permissions
 

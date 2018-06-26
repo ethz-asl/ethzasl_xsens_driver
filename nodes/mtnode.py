@@ -110,9 +110,10 @@ class XSensDriver(object):
         # publishers created at first use to reduce topic clutter
         self.diag_pub = None
         self.imu_pub = None
-        self.gps_pub = None
+        self.raw_gps_pub = None
         self.vel_pub = None
         self.mag_pub = None
+        self.pos_gps_pub = None
         self.temp_pub = None
         self.press_pub = None
         self.analog_in1_pub = None  # decide type+header
@@ -133,8 +134,10 @@ class XSensDriver(object):
         self.imu_msg.angular_velocity_covariance = (-1., )*9
         self.imu_msg.linear_acceleration_covariance = (-1., )*9
         self.pub_imu = False
-        self.gps_msg = NavSatFix()
-        self.pub_gps = False
+        self.raw_gps_msg = NavSatFix()
+        self.pub_raw_gps = False
+        self.pos_gps_msg = NavSatFix()
+        self.pub_pos_gps = False
         self.vel_msg = TwistStamped()
         self.pub_vel = False
         self.mag_msg = MagneticField()
@@ -268,11 +271,11 @@ class XSensDriver(object):
         def fill_from_RAWGPS(rawgps_data):
             '''Fill messages with information from 'rawgps' MTData block.'''
             if rawgps_data['bGPS'] < self.old_bGPS:
-                self.pub_gps = True
+                self.pub_raw_gps = True
                 # LLA
-                self.gps_msg.latitude = rawgps_data['LAT']*1e-7
-                self.gps_msg.longitude = rawgps_data['LON']*1e-7
-                self.gps_msg.altitude = rawgps_data['ALT']*1e-3
+                self.raw_gps_msg.latitude = rawgps_data['LAT']*1e-7
+                self.raw_gps_msg.longitude = rawgps_data['LON']*1e-7
+                self.raw_gps_msg.altitude = rawgps_data['ALT']*1e-3
                 # NED vel # TODO?
             self.old_bGPS = rawgps_data['bGPS']
 
@@ -353,10 +356,10 @@ class XSensDriver(object):
 
         def fill_from_Pos(position_data):
             '''Fill messages with information from 'position' MTData block.'''
-            self.pub_gps = True
-            self.gps_msg.latitude = position_data['Lat']
-            self.gps_msg.longitude = position_data['Lon']
-            self.gps_msg.altitude = position_data['Alt']
+            self.pub_pos_gps = True
+            self.pos_gps_msg.latitude = position_data['Lat']
+            self.pos_gps_msg.longitude = position_data['Lon']
+            self.pos_gps_msg.altitude = position_data['Alt']
 
         def fill_from_Vel(velocity_data):
             '''Fill messages with information from 'velocity' MTData block.'''
@@ -386,13 +389,19 @@ class XSensDriver(object):
             if status & 0b0100:
                 self.gps_stat.level = DiagnosticStatus.OK
                 self.gps_stat.message = "Ok"
-                self.gps_msg.status.status = NavSatStatus.STATUS_FIX
-                self.gps_msg.status.service = NavSatStatus.SERVICE_GPS
+                self.raw_gps_msg.status.status = NavSatStatus.STATUS_FIX
+                self.raw_gps_msg.status.service = NavSatStatus.SERVICE_GPS
+                # we borrow the status from the raw gps for pos_gps_msg
+                self.pos_gps_msg.status.status = NavSatStatus.STATUS_FIX
+                self.pos_gps_msg.status.service = NavSatStatus.SERVICE_GPS
             else:
                 self.gps_stat.level = DiagnosticStatus.WARN
                 self.gps_stat.message = "No fix"
-                self.gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
-                self.gps_msg.status.service = 0
+                self.raw_gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
+                self.raw_gps_msg.status.service = 0
+                # we borrow the status from the raw gps for pos_gps_msg
+                self.pos_gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
+                self.pos_gps_msg.status.service = 0
 
         def fill_from_Sample(ts):
             '''Catch 'Sample' MTData blocks.'''
@@ -499,12 +508,12 @@ class XSensDriver(object):
         def fill_from_Position(o):
             '''Fill messages with information from 'Position' MTData2 block.'''
             try:
-                self.gps_msg.latitude = o['lat']
-                self.gps_msg.longitude = o['lon']
-                self.pub_gps = True
+                self.pos_gps_msg.latitude = o['lat']
+                self.pos_gps_msg.longitude = o['lon']
                 # altMsl is deprecated
                 alt = o.get('altEllipsoid', o.get('altMsl', 0))
-                self.gps_msg.altitude = alt
+                self.pos_gps_msg.altitude = alt
+                self.pub_pos_gps = True
             except KeyError:
                 pass
             try:
@@ -529,16 +538,17 @@ class XSensDriver(object):
                 # flags
                 fixtype = o['fixtype']
                 if fixtype == 0x00:
-                    self.gps_msg.status.status = NavSatStatus.STATUS_NO_FIX  # no fix
-                    self.gps_msg.status.service = 0
+                    self.raw_gps_msg.status.status = NavSatStatus.STATUS_NO_FIX  # no fix
+                    self.raw_gps_msg.status.service = 0
                 else:
-                    self.gps_msg.status.status = NavSatStatus.STATUS_FIX  # unaugmented
-                    self.gps_msg.status.service = NavSatStatus.SERVICE_GPS
+                    self.raw_gps_msg.status.status = NavSatStatus.STATUS_FIX  # unaugmented
+                    self.raw_gps_msg.status.service = NavSatStatus.SERVICE_GPS
                 # lat lon alt
-                self.gps_msg.latitude = o['lat']
-                self.gps_msg.longitude = o['lon']
-                self.gps_msg.altitude = o['height']/1e3
-                self.pub_gps = True
+                self.raw_gps_msg.latitude = o['lat']
+                self.raw_gps_msg.longitude = o['lon']
+                self.raw_gps_msg.altitude = o['height']/1e3
+                # TODO should we separate raw_gps and GNSS?
+                self.pub_raw_gps = True
                 # TODO velocity?
                 # TODO 2D heading?
                 # TODO DOP?
@@ -716,11 +726,16 @@ class XSensDriver(object):
             if self.imu_pub is None:
                 self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
             self.imu_pub.publish(self.imu_msg)
-        if self.pub_gps:
-            self.gps_msg.header = self.h
-            if self.gps_pub is None:
-                self.gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
-            self.gps_pub.publish(self.gps_msg)
+        if self.pub_raw_gps:
+            self.raw_gps_msg.header = self.h
+            if self.raw_gps_pub is None:
+                self.raw_gps_pub = rospy.Publisher('raw_fix', NavSatFix, queue_size=10)
+            self.raw_gps_pub.publish(self.raw_gps_msg)
+        if self.pub_pos_gps:
+            self.pos_gps_msg.header = self.h
+            if self.pos_gps_pub is None:
+                self.pos_gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
+            self.pos_gps_pub.publish(self.pos_gps_msg)
         if self.pub_vel:
             self.vel_msg.header = self.h
             if self.vel_pub is None:

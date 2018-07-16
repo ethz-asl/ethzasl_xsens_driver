@@ -31,6 +31,7 @@ The nodes can take the following parameters:
 - \a ~device (\c auto): the path of the device file to connect to the imu; \c auto will look through all serial devices to find the first one.
 - \a ~baudrate (0): the baudrate of the IMU (unused for \c auto device); 0 will try to auto-detect baudrate.
 - \a ~timeout (0.002): the timeout for communication with the IMU.
+- \a ~initial_wait (0.1): initial wait to allow the device to come up before trying to communicate.
 - \a ~frame_id (\c /base_imu): the frame id of the IMU.
 - \a ~frame_local (\c ENU): the desired frame orientation (\c ENU, \c NED, or \c NWU).
 - \a ~no_rotation_duration (0): the int duration in seconds of the no-rotation calibration procedure at the start of the node (only for mark iv devices). If 0, the procedure is not launched.
@@ -86,6 +87,8 @@ Generic options:
         rates are tried until a suitable one is found.
     -t, --timeout=TIMEOUT
         Timeout of serial communication in second (default: 0.002).
+    -w, --initial-wait=WAIT
+        Initial wait to allow device to be ready in second (default: 0.1).
 
 Configuration option:
     OUTPUT

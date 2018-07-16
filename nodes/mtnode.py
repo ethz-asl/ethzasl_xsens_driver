@@ -55,8 +55,10 @@ class XSensDriver(object):
         device = get_param('~device', 'auto')
         baudrate = get_param('~baudrate', 0)
         timeout = get_param('~timeout', 0.002)
+        initial_wait = get_param('~initial_wait', 0.1)
         if device == 'auto':
-            devs = mtdevice.find_devices()
+            devs = mtdevice.find_devices(timeout=timeout,
+                                         initial_wait=initial_wait)
             if devs:
                 device, baudrate = devs[0]
                 rospy.loginfo("Detected MT device on port %s @ %d bps"
@@ -66,14 +68,16 @@ class XSensDriver(object):
                 rospy.signal_shutdown("Could not find proper MT device.")
                 return
         if not baudrate:
-            baudrate = mtdevice.find_baudrate(device)
+            baudrate = mtdevice.find_baudrate(device, timeout=timeout,
+                                              initial_wait=initial_wait)
         if not baudrate:
             rospy.logerr("Fatal: could not find proper baudrate.")
             rospy.signal_shutdown("Could not find proper baudrate.")
             return
 
         rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
-        self.mt = mtdevice.MTDevice(device, baudrate, timeout)
+        self.mt = mtdevice.MTDevice(device, baudrate, timeout,
+                                    initial_wait=initial_wait)
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)

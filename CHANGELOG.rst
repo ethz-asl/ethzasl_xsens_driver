@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2018-07-16)
+------------------
 * initial_wait argument for MTDevice, node and launch file
 * separate gps_msg from Position Data
 * handle both alignment rotation versions

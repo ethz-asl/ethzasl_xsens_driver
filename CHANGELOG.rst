@@ -2,6 +2,11 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix exception while closing node
+* Contributors: Francis Colas
+
 2.2.1 (2018-08-02)
 ------------------
 * fix frame reorientation (only for orientation and linear velocity)

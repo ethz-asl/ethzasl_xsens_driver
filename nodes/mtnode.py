@@ -293,8 +293,7 @@ class XSensDriver(object):
             '''Fill messages with information from 'calibrated' MTData block.'''
             try:
                 self.pub_imu = True
-                x, y, z = convert_coords(imu_data['gyrX'], imu_data['gyrY'],
-                                         imu_data['gyrZ'], o['frame'])
+                x, y, z = imu_data['gyrX'], imu_data['gyrY'], imu_data['gyrZ']
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
@@ -307,8 +306,7 @@ class XSensDriver(object):
                 pass
             try:
                 self.pub_imu = True
-                x, y, z = convert_coords(imu_data['accX'], imu_data['accY'],
-                                         imu_data['accZ'], o['frame'])
+                x, y, z = imu_data['accX'], imu_data['accY'], imu_data['accZ']
                 self.imu_msg.linear_acceleration.x = x
                 self.imu_msg.linear_acceleration.y = y
                 self.imu_msg.linear_acceleration.z = z
@@ -317,8 +315,7 @@ class XSensDriver(object):
                 pass
             try:
                 self.pub_mag = True
-                x, y, z = convert_coords(imu_data['magX'], imu_data['magY'],
-                                         imu_data['magZ'], o['frame'])
+                x, y, z = imu_data['magX'], imu_data['magY'], imu_data['magZ']
                 self.mag_msg.magnetic_field.x = x
                 self.mag_msg.magnetic_field.y = y
                 self.mag_msg.magnetic_field.z = z
@@ -339,6 +336,7 @@ class XSensDriver(object):
                 m = identity_matrix()
                 m[:3, :3] = orient_data['matrix']
                 x, y, z, w = quaternion_from_matrix(m)
+            w, x, y, z = convert_quat((w, x, y, z), o['frame'])
             self.imu_msg.orientation.x = x
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z
@@ -503,7 +501,6 @@ class XSensDriver(object):
                 x, y, z = o['accX'], o['accY'], o['accZ']
             except KeyError:
                 pass
-            x, y, z = convert_coords(x, y, z, o['frame'])
             self.imu_msg.linear_acceleration.x = x
             self.imu_msg.linear_acceleration.y = y
             self.imu_msg.linear_acceleration.z = z
@@ -564,10 +561,8 @@ class XSensDriver(object):
             '''Fill messages with information from 'Angular Velocity' MTData2
             block.'''
             try:
-                dqw, dqx, dqy, dqz = convert_quat(
-                    (o['Delta q0'], o['Delta q1'], o['Delta q2'],
-                     o['Delta q3']),
-                    o['frame'])
+                dqw, dqx, dqy, dqz = o['Delta q0'], o['Delta q1'],
+                    o['Delta q2'], o['Delta q3']
                 now = rospy.Time.now()
                 if self.last_delta_q_time is None:
                     self.last_delta_q_time = now
@@ -605,8 +600,7 @@ class XSensDriver(object):
             except KeyError:
                 pass
             try:
-                x, y, z = convert_coords(o['gyrX'], o['gyrY'], o['gyrZ'],
-                                         o['frame'])
+                x, y, z = o['gyrX'], o['gyrY'], o['gyrZ']
                 self.imu_msg.angular_velocity.x = x
                 self.imu_msg.angular_velocity.y = y
                 self.imu_msg.angular_velocity.z = z
@@ -671,8 +665,7 @@ class XSensDriver(object):
 
         def fill_from_Magnetic(o):
             '''Fill messages with information from 'Magnetic' MTData2 block.'''
-            x, y, z = convert_coords(o['magX'], o['magY'], o['magZ'],
-                                     o['frame'])
+            x, y, z = o['magX'], o['magY'], o['magZ']
             self.mag_msg.magnetic_field.x = x
             self.mag_msg.magnetic_field.y = y
             self.mag_msg.magnetic_field.z = z

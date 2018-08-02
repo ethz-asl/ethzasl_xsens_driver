@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.1 (2018-08-02)
+------------------
 * fix frame reorientation (only for orientation and linear velocity)
 * fix skip-factor command line (`#80 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/80>`_)
 * Contributors: Francis Colas

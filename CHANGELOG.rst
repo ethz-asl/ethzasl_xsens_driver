@@ -2,6 +2,12 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix frame reorientation (only for orientation and linear velocity)
+* fix skip-factor command line (`#80 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/80>`_)
+* Contributors: Francis Colas
+
 2.2.0 (2018-07-16)
 ------------------
 * initial_wait argument for MTDevice, node and launch file

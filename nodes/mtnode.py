@@ -15,6 +15,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
 import datetime
 import calendar
+import serial
 
 # transform Euler angles or matrix into quaternions
 from math import radians, sqrt, atan2
@@ -168,7 +169,7 @@ class XSensDriver(object):
                 self.reset_vars()
         # Ctrl-C signal interferes with select with the ROS signal handler
         # should be OSError in python 3.?
-        except select.error:
+        except (select.error, OSError, serial.serialutil.SerialException):
             pass
 
     def spin_once(self):
@@ -561,8 +562,8 @@ class XSensDriver(object):
             '''Fill messages with information from 'Angular Velocity' MTData2
             block.'''
             try:
-                dqw, dqx, dqy, dqz = o['Delta q0'], o['Delta q1'],
-                    o['Delta q2'], o['Delta q3']
+                dqw, dqx, dqy, dqz = (o['Delta q0'], o['Delta q1'],
+                    o['Delta q2'], o['Delta q3'])
                 now = rospy.Time.now()
                 if self.last_delta_q_time is None:
                     self.last_delta_q_time = now

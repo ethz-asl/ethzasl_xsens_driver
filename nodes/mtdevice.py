@@ -1516,7 +1516,7 @@ def main():
             except ValueError:
                 print "period argument must be integer."
                 return 1
-        elif o in ('-f', '--skip-factor'):
+        elif o in ('-f', '--deprecated-skip-factor'):
             try:
                 skipfactor = int(a)
             except ValueError:

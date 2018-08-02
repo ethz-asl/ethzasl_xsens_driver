@@ -2,8 +2,8 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.2 (2018-08-02)
+------------------
 * fix exception while closing node
 * Contributors: Francis Colas
 

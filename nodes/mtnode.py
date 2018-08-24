@@ -83,7 +83,9 @@ class XSensDriver(object):
         if output_config:
             rospy.loginfo("Setting MTDevice OUTPUT to: '%s' " % output_config)
             oc = mtdevice.get_output_config(output_config)
+            self.mt.GoToConfig()
             self.mt.SetOutputConfiguration(oc)
+            self.mt.GoToMeasurement()
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)

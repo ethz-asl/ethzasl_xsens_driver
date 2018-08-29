@@ -57,9 +57,7 @@ class XSensDriver(object):
         baudrate = get_param('~baudrate', 0)
         timeout = get_param('~timeout', 0.002)
         initial_wait = get_param('~initial_wait', 0.1)
-        output_config = get_param('~output_config', '')
-        reset_orientation = get_param('~reset_orientation', False)
-        set_geo_coordinates = get_param('~set_geo_coordinates', '')
+        set_geo_coordinates = get_param('~set_geo_coordinates', '51.5,-0.09,0.0')
         if device == 'auto':
             devs = mtdevice.find_devices(timeout=timeout,
                                          initial_wait=initial_wait)
@@ -82,17 +80,6 @@ class XSensDriver(object):
         rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
         self.mt = mtdevice.MTDevice(device, baudrate, timeout,
                                     initial_wait=initial_wait)
-
-        if output_config:
-            rospy.loginfo("Setting MTDevice OUTPUT to: '%s' " % output_config)
-            oc = mtdevice.get_output_config(output_config)
-            self.mt.SetOutputConfiguration(oc)
-
-        if reset_orientation:
-            rospy.loginfo("Resetting MTDevice orientation")
-            #self.mt.ResetHeading()
-            self.mt.ResetAlignment()
-            self.mt.ResetInclination()
 
         if set_geo_coordinates:
             coords = set_geo_coordinates.split(",")

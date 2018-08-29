@@ -54,7 +54,6 @@ class MTDevice(object):
         if config_mode:
             self.GoToConfig()
 
-
     ############################################################
     # Low-level communication
     ############################################################
@@ -141,14 +140,12 @@ class MTDevice(object):
                 continue
             # read message id and length of message
             mid, length = struct.unpack('!BB', self.waitfor(2))
-            print "****  MID 0x%02X **** " % mid
             if length == 255:    # extended length
                 length, = struct.unpack('!H', self.waitfor(2))
             # read contents and checksum
             buf = self.waitfor(length+1)
             checksum = buf[-1]
             data = struct.unpack('!%dB' % length, buf[:-1])
-            print "****  data %s, data[0]: 0x%02X **** " % (data, data[0] if len(data) else 0)
             # check message integrity
             if 0xFF & sum(data, 0xFF+mid+length+checksum):
                 if self.verbose:
@@ -576,21 +573,8 @@ class MTDevice(object):
             0x0001: heading reset (NOT supported by MTi-G),
             0x0003: object reset.
         """
-        print "msg: 0x%02X, code: 0x%02X " % (MID.ResetOrientation, code)
         data = struct.pack('!H', code)
         self.write_ack(MID.ResetOrientation, data)
-
-    def SaveCurrentOrientation(self):
-        self.ResetOrientation(MID.ResetCode.StoreCurrentSettings)
-        
-    def ResetHeading(self):
-        self.ResetOrientation(MID.ResetCode.ResetHeading)
-
-    def ResetInclination(self):
-        self.ResetOrientation(MID.ResetCode.ResetInclination)
-
-    def ResetAlignment(self):
-        self.ResetOrientation(MID.ResetCode.ResetAlignment)
 
     def SetNoRotation(self, duration):
         """Initiate the "no rotation" procedure to estimate gyro biases."""

@@ -93,17 +93,6 @@ class MID:
     # Filter messages
     # Reset orientation, 2 bytes
     ResetOrientation = 0xA4
-    ResetOrientationAck = 0xA5
-    class ResetCode:
-        StoreCurrentSettings = 0x0000
-        ResetHeading = 0x0001
-        # Reserved = 0x0002
-        ResetInclination = 0x0003
-        ResetAlignment = 0x0004
-        DefaultHeading = 0x0005
-        DefaultInclination = 0x0006
-        DefaultAlignment = 0x0007
-
     # Request or set UTC time from sensor (MTI-G and MTi-10/100 series)
     SetUTCTime = 0x60
     # Set correction ticks to UTC time

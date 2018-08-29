@@ -5,8 +5,10 @@
     <arg name="timeout" default="0.002" doc="timeout for the IMU communication"/>
     <arg name="initial_wait" default="0.1" doc="initial wait to allow device to come up"/>
     <arg name="output_config" default="oq,ad,wd,mf" doc="OUTPUT format (as in mtdevice.py --help)"/>
+    <arg name="reset_orientation" default="False" doc="reset the orientation at wake up (X-axis in front of MT device)"/>
+    <arg name="set_geo_coordinates" default="53,-0.0987,0.0" doc="lat,lon,alt"/>
     <arg name="frame_id" default="/imu" doc="frame id of the IMU"/>
-    <arg name="frame_local" default="ENU" doc="desired frame orientation (ENU, NED or NWU)"/>
+    <arg name="frame_local" default="NWU" doc="desired frame orientation (ENU, NED or NWU)"/>
     <arg name="no_rotation_duration" default="0" doc="duration (int in seconds) of the no-rotation calibration procedure"/>
     <arg name="angular_velocity_covariance_diagonal" default="[0.0004, 0.0004, 0.0004]" doc="Diagonal elements of angular velocity covariance matrix"/>
     <arg name="linear_acceleration_covariance_diagonal" default="[0.0004, 0.0004, 0.0004]" doc="Diagonal elements of linear acceleration covariance matrix"/>
@@ -19,6 +21,8 @@
         <param name="timeout" value="$(arg timeout)"/>
         <param name="initial_wait" value="$(arg initial_wait)"/>
         <param name="output_config" value="$(arg output_config)" />
+        <param name="reset_orientation" value="$(arg reset_orientation)" />
+        <param name="set_geo_coordinates" value="$(arg set_geo_coordinates)" />
         <param name="frame_id" value="$(arg frame_id)"/>
         <param name="frame_local" value="$(arg frame_local)"/>
         <param name="no_rotation_duration" value="$(arg no_rotation_duration)"/>

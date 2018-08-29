@@ -58,6 +58,8 @@ class XSensDriver(object):
         timeout = get_param('~timeout', 0.002)
         initial_wait = get_param('~initial_wait', 0.1)
         output_config = get_param('~output_config', '')
+        reset_orientation = get_param('~reset_orientation', False)
+        set_geo_coordinates = get_param('~set_geo_coordinates', '')
         if device == 'auto':
             devs = mtdevice.find_devices(timeout=timeout,
                                          initial_wait=initial_wait)
@@ -80,12 +82,26 @@ class XSensDriver(object):
         rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
         self.mt = mtdevice.MTDevice(device, baudrate, timeout,
                                     initial_wait=initial_wait)
+
         if output_config:
             rospy.loginfo("Setting MTDevice OUTPUT to: '%s' " % output_config)
             oc = mtdevice.get_output_config(output_config)
-            self.mt.GoToConfig()
             self.mt.SetOutputConfiguration(oc)
-            self.mt.GoToMeasurement()
+
+        if reset_orientation:
+            rospy.loginfo("Resetting MTDevice orientation")
+            #self.mt.ResetHeading()
+            self.mt.ResetAlignment()
+            self.mt.ResetInclination()
+
+        if set_geo_coordinates:
+            coords = set_geo_coordinates.split(",")
+            if len(coords) != 3:
+                raise RuntimeError("set_geo_coordinates wrongly formatted: " \
+                                   "can only take 3 values comma separated")
+            lat, lng, alt = float(coords[0]), float(coords[1]), float(coords[2])
+            rospy.loginfo("Setting Lat, Lng, Alt: %f, %f, %f" % (lat, lng, alt))
+            self.mt.SetLatLonAlt(lat, lng, alt)
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)

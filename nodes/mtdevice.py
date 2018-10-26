@@ -822,11 +822,12 @@ class MTDevice(object):
                     o['nDOP'], o['eDOP'] = 0.01*g, 0.01*p, 0.01*t, \
                     0.01*v, 0.01*h, 0.01*n, 0.01*e
             elif (data_id & 0x00F0) == 0x40:  # SOL
+		# using only first 49 bytes to fix problem in issue #61
                 o['iTOW'], o['fTOW'], o['Week'], o['gpsFix'], o['Flags'], \
                     o['ecefX'], o['ecefY'], o['ecefZ'], o['pAcc'], \
                     o['ecefVX'], o['ecefVY'], o['ecefVZ'], o['sAcc'], \
                     o['pDOP'], o['numSV'] = \
-                    struct.unpack('!LlhBBlllLlllLHxBx', content)
+                    struct.unpack('!LlhBBlllLlllLHxBx', content[:49])
                 # scaling correction
                 o['pDOP'] *= 0.01
             elif (data_id & 0x00F0) == 0x80:  # Time UTC

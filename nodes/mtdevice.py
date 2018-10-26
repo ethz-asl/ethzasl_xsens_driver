@@ -1011,7 +1011,8 @@ class MTDevice(object):
                 else:
                     raise MTException("unknown XDI group: 0x%04X." % group)
             except struct.error:
-                raise MTException("couldn't parse MTData2 message.")
+                raise MTException("couldn't parse MTData2 message (data_id: "
+				  "0x%04X, size: %d)." % (data_id, size))
         return output
 
     def parse_MTData(self, data, mode=None, settings=None):

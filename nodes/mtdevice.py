@@ -177,6 +177,7 @@ class MTDevice(object):
                 continue  # retry (send+wait)
             break  # still no luck
         else:
+            n_retries = n_resend*n_read
             raise MTException("Ack (0x%02X) expected, MID 0x%02X received "
                               "instead (after %d retries)." % (mid+1, mid_ack,
                                                                n_retries))

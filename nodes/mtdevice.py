@@ -162,11 +162,11 @@ class MTDevice(object):
         else:
             raise MTException("could not find message.")
 
-    def write_ack(self, mid, data=b'', n_retries=10):
+    def write_ack(self, mid, data=b'', n_resend=30, n_read=25):
         """Send a message and read confirmation."""
-        for _ in range(n_retries):
+        for _ in range(n_resend):
             self.write_msg(mid, data)
-            for _ in range(50):
+            for _ in range(n_read):
                 mid_ack, data_ack = self.read_msg()
                 if mid_ack == (mid+1):
                     break

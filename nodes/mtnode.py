@@ -337,14 +337,14 @@ class XSensDriver(object):
                 m = identity_matrix()
                 m[:3, :3] = orient_data['matrix']
                 x, y, z, w = quaternion_from_matrix(m)
-            w, x, y, z = convert_quat((w, x, y, z), o['frame'])
+            w, x, y, z = convert_quat((w, x, y, z), orient_data['frame'])
             self.imu_msg.orientation.x = x
             self.imu_msg.orientation.y = y
             self.imu_msg.orientation.z = z
             self.imu_msg.orientation.w = w
             self.imu_msg.orientation_covariance = self.orientation_covariance
 
-        def fill_from_Auxiliary(aux_data):
+        def fill_from_Auxiliary(o):
             '''Fill messages with information from 'Auxiliary' MTData block.'''
             try:
                 self.anin1_msg.data = o['Ain_1']
@@ -369,7 +369,7 @@ class XSensDriver(object):
             self.pub_vel = True
             x, y, z = convert_coords(
                 velocity_data['Vel_X'], velocity_data['Vel_Y'],
-                velocity_data['Vel_Z'], o['frame'])
+                velocity_data['Vel_Z'], velocity_data['frame'])
             self.vel_msg.twist.linear.x = x
             self.vel_msg.twist.linear.y = y
             self.vel_msg.twist.linear.z = z

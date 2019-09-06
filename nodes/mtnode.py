@@ -85,8 +85,8 @@ class XSensDriver(object):
         no_rotation_duration = get_param('~no_rotation_duration', 0)
         if no_rotation_duration:
             rospy.loginfo("Starting the no-rotation procedure to estimate the "
-                          "gyroscope biases for %d s. Please don't move the IMU"
-                          " during this time." % no_rotation_duration)
+                          "gyroscope biases for %d s. Please don't move the "
+                          "IMU during this time." % no_rotation_duration)
             self.mt.SetNoRotation(no_rotation_duration)
 
         self.frame_id = get_param('~frame_id', '/base_imu')
@@ -192,8 +192,10 @@ class XSensDriver(object):
 
         def convert_quat(q, source, dest=self.frame_local):
             """Convert a quaternion between ENU, NED, and NWU."""
-            def q_mult((w0, x0, y0, z0), (w1, x1, y1, z1)):
+            def q_mult(q0, q1):
                 """Quaternion multiplication."""
+                w0, x0, y0, z0 = q0
+                w1, x1, y1, z1 = q1
                 w = w0*w1 - x0*x1 - y0*y1 - z0*z1
                 x = w0*x1 + x0*w1 + y0*z1 - z0*y1
                 y = w0*y1 - x0*z1 + y0*w1 + z0*x1
@@ -257,9 +259,9 @@ class XSensDriver(object):
             start_of_week = stamp_day - datetime.timedelta(days=iso_day)
             # stamp at the millisecond precision
             stamp_ms = start_of_week + datetime.timedelta(milliseconds=itow)
-            secs = calendar.timegm((stamp_ms.year, stamp_ms.month, stamp_ms.day,
-                                    stamp_ms.hour, stamp_ms.minute,
-                                    stamp_ms.second, 0, 0, -1))
+            secs = calendar.timegm((
+                stamp_ms.year, stamp_ms.month, stamp_ms.day, stamp_ms.hour,
+                stamp_ms.minute, stamp_ms.second, 0, 0, -1))
             nsecs = stamp_ms.microsecond * 1000 + ns
             if nsecs < 0:  # ns can be negative
                 secs -= 1
@@ -291,7 +293,8 @@ class XSensDriver(object):
             self.temp_msg.temperature = temp
 
         def fill_from_Calib(imu_data):
-            '''Fill messages with information from 'calibrated' MTData block.'''
+            '''Fill messages with information from 'calibrated' MTData block.
+            '''
             try:
                 self.pub_imu = True
                 x, y, z = imu_data['gyrX'], imu_data['gyrY'], imu_data['gyrZ']
@@ -331,7 +334,8 @@ class XSensDriver(object):
                 w, x, y, z = orient_data['quaternion']
             elif 'roll' in orient_data:
                 x, y, z, w = quaternion_from_euler(
-                    radians(orient_data['roll']), radians(orient_data['pitch']),
+                    radians(orient_data['roll']),
+                    radians(orient_data['pitch']),
                     radians(orient_data['yaw']))
             elif 'matrix' in orient_data:
                 m = identity_matrix()
@@ -418,7 +422,8 @@ class XSensDriver(object):
             self.temp_msg.temperature = o['Temp']
 
         def fill_from_Timestamp(o):
-            '''Fill messages with information from 'Timestamp' MTData2 block.'''
+            '''Fill messages with information from 'Timestamp' MTData2 block.
+            '''
             try:
                 # put timestamp from gps UTC time if available
                 y, m, d, hr, mi, s, ns, f = o['Year'], o['Month'], o['Day'],\
@@ -540,10 +545,12 @@ class XSensDriver(object):
                 # flags
                 fixtype = o['fixtype']
                 if fixtype == 0x00:
-                    self.raw_gps_msg.status.status = NavSatStatus.STATUS_NO_FIX  # no fix
+                    # no fix
+                    self.raw_gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
                     self.raw_gps_msg.status.service = 0
                 else:
-                    self.raw_gps_msg.status.status = NavSatStatus.STATUS_FIX  # unaugmented
+                    # unaugmented
+                    self.raw_gps_msg.status.status = NavSatStatus.STATUS_FIX
                     self.raw_gps_msg.status.service = NavSatStatus.SERVICE_GPS
                 # lat lon alt
                 self.raw_gps_msg.latitude = o['lat']
@@ -568,7 +575,7 @@ class XSensDriver(object):
                 if self.last_delta_q_time is None:
                     self.last_delta_q_time = now
                 else:
-                    # update rate (filtering needed to account for lag variance)
+                    # update rate (filtering so as to account for lag variance)
                     delta_t = (now - self.last_delta_q_time).to_sec()
                     if self.delta_q_rate is None:
                         self.delta_q_rate = 1./delta_t
@@ -579,7 +586,7 @@ class XSensDriver(object):
                     # relationship between \Delta q and velocity \bm{\omega}:
                     # \bm{w} = \Delta t . \bm{\omega}
                     # \theta = |\bm{w}|
-                    # \Delta q = [cos{\theta/2}, sin{\theta/2)/\theta . \bm{\omega}
+                    # \Delta q = [cos{\theta/2}, sin{\theta/2)/\theta . \omega
                     # extract rotation angle over delta_t
                     ca_2, sa_2 = dqw, sqrt(dqx**2 + dqy**2 + dqz**2)
                     ca = ca_2**2 - sa_2**2
@@ -652,7 +659,8 @@ class XSensDriver(object):
             pass
 
         def fill_from_Analog_In(o):
-            '''Fill messages with information from 'Analog In' MTData2 block.'''
+            '''Fill messages with information from 'Analog In' MTData2 block.
+            '''
             try:
                 self.anin1_msg.data = o['analogIn1']
                 self.pub_anin1 = True
@@ -777,8 +785,8 @@ class XSensDriver(object):
         if self.pub_diag:
             self.diag_msg.header = self.h
             if self.diag_pub is None:
-                self.diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray,
-                                                queue_size=10)
+                self.diag_pub = rospy.Publisher('/diagnostics',
+                                                DiagnosticArray, queue_size=10)
             self.diag_pub.publish(self.diag_msg)
         # publish string representation
         self.str_pub.publish(str(data))

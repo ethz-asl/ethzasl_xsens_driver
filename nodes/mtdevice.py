@@ -75,9 +75,9 @@ class MTDevice(object):
         except serial.serialutil.SerialTimeoutException:
             raise MTTimeoutException("writing message")
         if self.verbose:
-            print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" %\
-                (mid, getMIDName(mid), length,
-                 ' '.join("%02X" % ord(v) for v in data))
+            print "MT: Write message id 0x%02X (%s) with %d data bytes: "\
+                  "[%s]" % (mid, getMIDName(mid), length,
+                            ' '.join("%02X" % ord(v) for v in data))
 
     def waitfor(self, size=1):
         """Get a given amount of data."""
@@ -118,8 +118,8 @@ class MTDevice(object):
                 buf.extend(self.waitfor(totlength-len(buf)))
             if 0xFF & sum(buf[1:]):
                 if self.verbose:
-                    sys.stderr.write("MT: invalid checksum; discarding data and"
-                                     " waiting for next message.\n")
+                    sys.stderr.write("MT: invalid checksum; discarding data "
+                                     "and waiting for next message.\n")
                 del buf[:buf.find(self.header)-2]
                 continue
             data = str(buf[-self.length-1:-1])
@@ -153,9 +153,9 @@ class MTDevice(object):
                                      "waiting for next message.\n")
                 continue
             if self.verbose:
-                print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"\
-                    % (mid, getMIDName(mid), length,
-                       ' '.join("%02X" % v for v in data))
+                print "MT: Got message id 0x%02X (%s) with %d data bytes: "\
+                      "[%s]" % (mid, getMIDName(mid), length,
+                                ' '.join("%02X" % v for v in data))
             if mid == MID.Error:
                 raise MTErrorMessage(data[0])
             return (mid, buf[:-1])
@@ -236,14 +236,24 @@ class MTDevice(object):
         data = self.write_ack(MID.ReqProductCode)
         return str(data).strip()
 
+    def GetHardwareVersion(self):
+        """Get the hardware version."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.ReqHardwareVersion)
+        major, minor = struct.unpack('!BB', data)
+        return (major, minor)
+
     def GetFirmwareRev(self):
         """Get the firmware version."""
         self._ensure_config_state()
         data = self.write_ack(MID.ReqFWRev)
-        # XXX unpacking only 3 characters in accordance with the documentation
-        # but some devices send 11 bytes instead.
-        major, minor, revision = struct.unpack('!BBB', data[:3])
-        return (major, minor, revision)
+        if len(data) == 3:
+            major, minor, revision = struct.unpack('!BBB', data)
+            return (major, minor, revision)
+        else:
+            # TODO check buildnr/svnrev not sure unsigned
+            major, minor, rev, buildnr, svnrev = struct.unpack('!BBBII', data)
+            return (major, minor, rev, buildnr, svnrev)
 
     def RunSelfTest(self):
         """Run the built-in self test."""
@@ -565,10 +575,28 @@ class MTDevice(object):
         return self.scenario_id
 
     def SetCurrentScenario(self, scenario_id):
-        """Sets the XKF scenario to use."""
+        """Set the XKF scenario to use."""
         self._ensure_config_state()
         data = struct.pack('!BB', 0, scenario_id)  # version, id
         self.write_ack(MID.SetCurrentScenario, data)
+
+    # New names in mk5
+    GetAvailableFilterProfiles = GetAvailableScenarios
+    GetFilterProfile = GetCurrentScenario
+    SetFilterProfile = SetCurrentScenario
+
+    def GetGnssPlatform(self):
+        """Get the current GNSS navigation filter settings."""
+        self._ensure_config_state()
+        data = self.write_ack(MID.SetGnssPlatform)
+        platform, = struct.unpack('!H', data)
+        return platform
+
+    def SetGnssPlatform(self, platform):
+        """Set the GNSS navigation filter settings."""
+        self._ensure_config_state()
+        data = struct.pack('!H', platform)
+        self.write_ack(MID.SetGnssPlatform, data)
 
     def ResetOrientation(self, code):
         """Reset the orientation.
@@ -607,6 +635,28 @@ class MTDevice(object):
         self._ensure_config_state()
         data = struct.pack('!i', ticks)
         self.write(MID.AdjustUTCTime, data)  # no ack mentioned in the doc
+
+    def IccCommand(self, command):
+        """Command of In-run Compass Calibration (ICC)."""
+        if command not in (0, 1, 2, 3):
+            raise MTException("unknown ICC command 0x%02X" % command)
+        cmd_data = struct.pack('!B', command)
+        res_data = self.write_ack(MID.IccCommand, cmd_data)
+        cmd_ack = struct.unpack('!B', res_data[:1])
+        payload = res_data[1:]
+        if cmd_ack != command:
+            raise MTException("expected ack of command 0x%02X; got 0x%02X "
+                              "instead" % (command, cmd_ack))
+        if cmd_ack == 0:
+            return
+        elif cmd_ack == 1:
+            ddt_value, dimension, status = struct.unpack('!fBB', payload)
+            return ddt_value, dimension, status
+        elif cmd_ack == 2:
+            return
+        elif cmd_ack == 3:
+            state = struct.unpack('!B', payload)
+            return state
 
     ############################################################
     # High-level utility functions
@@ -698,8 +748,8 @@ class MTDevice(object):
                 o['Q0'], o['Q1'], o['Q2'], o['Q3'] = struct.unpack('!'+4*ffmt,
                                                                    content)
             elif (data_id & 0x00F0) == 0x20:  # Rotation Matrix
-                o['a'], o['b'], o['c'], o['d'], o['e'], o['f'], o['g'], o['h'],\
-                    o['i'] = struct.unpack('!'+9*ffmt, content)
+                o['a'], o['b'], o['c'], o['d'], o['e'], o['f'], o['g'],\
+                    o['h'], o['i'] = struct.unpack('!'+9*ffmt, content)
             elif (data_id & 0x00F0) == 0x30:  # Euler Angles
                 o['Roll'], o['Pitch'], o['Yaw'] = struct.unpack('!'+3*ffmt,
                                                                 content)
@@ -767,9 +817,10 @@ class MTDevice(object):
                     o['min'], o['sec'], o['valid'], o['tAcc'], o['nano'],\
                     o['fixtype'], o['flags'], o['numSV'], o['lon'], o['lat'],\
                     o['height'], o['hMSL'], o['hAcc'], o['vAcc'], o['velN'],\
-                    o['velE'], o['velD'], o['gSpeed'], o['headMot'], o['sAcc'],\
-                    o['headAcc'], o['headVeh'], o['gdop'], o['pdop'],\
-                    o['tdop'], o['vdop'], o['hdop'], o['ndop'], o['edop'] = \
+                    o['velE'], o['velD'], o['gSpeed'], o['headMot'],\
+                    o['sAcc'], o['headAcc'], o['headVeh'], o['gdop'],\
+                    o['pdop'], o['tdop'], o['vdop'], o['hdop'], o['ndop'],\
+                    o['edop'] =\
                     struct.unpack('!IHBBBBBBIiBBBxiiiiIIiiiiiIIiHHHHHHH',
                                   content)
                 # scaling correction
@@ -977,7 +1028,8 @@ class MTDevice(object):
                 else:
                     raise MTException("unknown XDI group: 0x%04X." % group)
             except struct.error:
-                raise MTException("couldn't parse MTData2 message.")
+                raise MTException("couldn't parse MTData2 message (data_id: "
+				  "0x%04X, size: %d)." % (data_id, size))
         return output
 
     def parse_MTData(self, data, mode=None, settings=None):
@@ -1001,9 +1053,10 @@ class MTDevice(object):
             # raw GPS second
             if mode & OutputMode.RAWGPS:
                 o = {}
-                o['Press'], o['bPrs'], o['ITOW'], o['LAT'], o['LON'], o['ALT'],\
-                    o['VEL_N'], o['VEL_E'], o['VEL_D'], o['Hacc'], o['Vacc'],\
-                    o['Sacc'], o['bGPS'] = struct.unpack('!HBI6i3IB', data[:44])
+                o['Press'], o['bPrs'], o['ITOW'], o['LAT'], o['LON'],\
+                    o['ALT'], o['VEL_N'], o['VEL_E'], o['VEL_D'], o['Hacc'],\
+                    o['Vacc'], o['Sacc'], o['bGPS'] =\
+                    struct.unpack('!HBI6i3IB', data[:44])
                 data = data[44:]
                 output['RAWGPS'] = o
             # temperature
@@ -1190,9 +1243,15 @@ Commands:
     -v, --verbose
         Verbose output.
     -y, --synchronization=settings (see below)
-        Configure the synchronization settings of each sync line (see below)
-    -u, --setUTCTime=time (see below)
-        Sets the UTC time buffer of the device
+        Configure the synchronization settings of each sync line (see below).
+    -u, --utc-time=time (see below)
+        Set the UTC time buffer of the device.
+    -g, --gnss-platform=platform
+        Change the GNSS navigation filter settings (check the documentation).
+    -o, --option-flags=flags (see below)
+        Set the option flags.
+    -j, --icc-command=command (see below)
+        Send command to the In-run Compass Calibration.
 
 Generic options:
     -d, --device=DEV
@@ -1282,8 +1341,8 @@ Configuration option:
                 "pl400fe,pa400fe,oq400fe"
 
 Synchronization settings:
-    The format follows the xsens protocol documentation. All fields are required
-    and separated by commas.
+    The format follows the xsens protocol documentation. All fields are
+    required and separated by commas.
     Note: The entire synchronization buffer is wiped every time a new one
           is set, so it is necessary to specify the settings of multiple
           lines at once.
@@ -1342,7 +1401,7 @@ Synchronization settings:
         To clear the synchronization settings of MTi
         ./mtdevice.py -y clear
 
-SetUTCTime settings:
+UTC time settings:
     There are two ways to set the UTCtime for the MTi.
     Option #1: set MTi to the current UTC time based on local system time with
                the option 'now'
@@ -1359,13 +1418,55 @@ SetUTCTime settings:
                 1: Valid Time of Week
                 2: Valid Week Number
                 4: valid UTC
-            Note: the flag is ignored for setUTCTime as it is set by the module
+            Note: the flag is ignored for --utc-time as it is set by the device
                   itself when connected to a GPS
 
     Examples:
         Set UTC time for the device:
         ./mtdevice.py -u now
         ./mtdevice.py -u 1999,1,1,0,0,0,0,0
+
+GNSS platform settings:
+    Only for MTi-G-700/710 with firmware>=1.7.
+    The following two platform settings are listed in the documentation:
+        0:  Portable
+        8:  Airbone <4g
+    Check the XSens documentation before changing anything.
+
+Option flags:
+    Several flags can be set or cleared.
+    0x00000001  DisableAutoStore: when set, configuration changes are not saved
+                    in non-volatile memory (only MTi-1 series)
+    0x00000002  DisableAutoMeasurement: when set, device will stay in Config
+                    Mode upon start up (only MTi-1 series)
+    0x00000004  EnableBeidou: when set, enable Beidou and disable GLONASS (only
+                    MTi-G-710)
+    0x00000010  EnableAHS: enable Active Heading Stabilization (overrides
+                    magnetic reference)
+    0x00000080  EnableInRunCompassCalibration: doc is unclear
+    The flags provided must be a pair of ored values: the first for flags to be
+    set the second for the flags to be cleared.
+    Examples:
+        Only set DisableAutoStore and DisableAutoMeasurement flags:
+            ./mtdevice.py -o 0x03,0x00
+        Disable AHS (clear EnableAHS flag):
+            ./mtdevice.py -o 0x00,0x10
+        Set DisableAutoStore and clear DisableAutoMeasurement:
+            ./mtdevice.py -o 0x02,0x01
+
+In-run Compass Calibration commands:
+    The idea of ICC is to record magnetic field data during so-called
+    representative motion in order to better calibrate the magnetometer and
+    improve the fusion.
+    Typical usage would be to issue the start command, then move the device
+    for some time then issue the stop command. If parameters are acceptable,
+    these can be stored using the store command.
+    Commands:
+        00: Start representative motion
+        01: Stop representative motion; return ddt, dimension, and status.
+        02: Store ICC parameters
+        03: Get representative motion state; return 1 if active
+    Check the documentation for more details.
 
 Legacy options:
     -m, --output-mode=MODE
@@ -1429,12 +1530,13 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:c:eild:b:y:u:m:s:p:f:x:vt:w:'
+    shopts = 'hra:c:eild:b:m:s:p:f:x:vy:u:g:o:j:t:w:'
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
              'deprecated-skip-factor=', 'xkf-scenario=', 'verbose',
-             'synchronization=', 'setUTCtime=', 'timeout=', 'initial-wait=']
+             'synchronization=', 'utc-time=', 'gnss-platform=',
+             'option-flags=', 'icc-command=', 'timeout=', 'initial-wait=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1454,7 +1556,7 @@ def main():
     new_xkf = None
     actions = []
     verbose = False
-    sync_settings = [] # list of synchronization settings
+    sync_settings = []  # list of synchronization settings
 
     # filling in arguments
     for o, a in opts:
@@ -1529,6 +1631,21 @@ def main():
                 return 1
         elif o in ('-v', '--verbose'):
             verbose = True
+        elif o in ('-g', '--gnss-platform'):
+            platform = get_gnss_platform(a)
+            if platform is None:
+                return 1
+            actions.append('gnss-platform')
+        elif o in ('-o', '--option-flags'):
+            flag_tuple = get_option_flags(a)
+            if flag_tuple is None:
+                return 1
+            actions.append('option-flags')
+        elif o in ('-j', '--icc-command'):
+            icc_command = get_icc_command(a)
+            if icc_command is None:
+                return 1
+            actions.append('icc-command')
         elif o in ('-t', '--timeout'):
             try:
                 timeout = float(a)
@@ -1574,7 +1691,8 @@ def main():
         if 'inspect' in actions:
             inspect(mt, device, baudrate)
         if 'change-baudrate' in actions:
-            print "Changing baudrate from %d to %d:" % (baudrate, new_baudrate),
+            print "Changing baudrate from %d to %d:" % (baudrate,
+                                                        new_baudrate),
             sys.stdout.flush()
             mt.ChangeBaudrate(new_baudrate)
             print " Ok"  # should we test that it was actually ok?
@@ -1605,14 +1723,44 @@ def main():
                           UTCtime_settings[5],
                           UTCtime_settings[7])
             print " Ok"  # should we test that it was actually ok?
+        if 'gnss-platform' in actions:
+            print "Setting GNSS platform",
+            sys.stdout.flush()
+            mt.SetGnssPlatform(platform)
+            print " Ok"  # should we test that it was actually ok?
+        if 'option-flags' in actions:
+            print "Setting option flags",
+            sys.stdout.flush()
+            mt.SetOptionFlags(*flag_tuple)
+            print " Ok"  # should we test that it was actually ok?
+        if 'icc-command' in actions:
+            icc_command_names = {
+                    0: 'start representative motion',
+                    1: 'stop representative motion',
+                    2: 'store ICC results',
+                    3: 'representative motion state'}
+            print "Sending ICC command 0x%02X (%s):" % (
+                    icc_command, icc_command_names[icc_command]),
+            sys.stdout.flush()
+            res = mt.IccCommand(icc_command)
+            if icc_command == 0x00:
+                print " Ok"  # should we test that it was actually ok?
+            elif icc_command == 0x01:
+                print res
+            elif icc_command == 0x02:
+                print " Ok"  # should we test that it was actually ok?
+            elif icc_command == 0x03:
+                res_string = {0: 'representative motion inactive',
+                              1: 'representation motion active'}
+                print "0x02X (%s)" % (res, res_string.get(res, 'unknown'))
         if 'legacy-configure' in actions:
             if mode is None:
                 print "output-mode is require to configure the device in "\
                     "legacy mode."
                 return 1
             if settings is None:
-                print "output-settings is required to configure the device in "\
-                    "legacy mode."
+                print "output-settings is required to configure the device "\
+                      "in legacy mode."
                 return 1
             print "Configuring in legacy mode",
             sys.stdout.flush()
@@ -1678,6 +1826,7 @@ def inspect(mt, device, baudrate):
     print "Device: %s at %d Bd:" % (device, baudrate)
     try_message("device ID:", mt.GetDeviceID, hex_fmt(4))
     try_message("product code:", mt.GetProductCode)
+    try_message("hardware version:", mt.GetHardwareVersion)
     try_message("firmware revision:", mt.GetFirmwareRev)
     try_message("baudrate:", mt.GetBaudrate)
     try_message("error mode:", mt.GetErrorMode, hex_fmt(2))
@@ -1698,6 +1847,7 @@ def inspect(mt, device, baudrate):
     try_message("extended output mode:", mt.GetExtOutputMode, hex_fmt(2))
     try_message("output settings:", mt.GetOutputSettings, hex_fmt(4))
     try_message("GPS coordinates (lat, lon, alt):", mt.GetLatLonAlt)
+    try_message("GNSS platform:", mt.GetGnssPlatform)
     try_message("available scenarios:", mt.GetAvailableScenarios)
     try_message("current scenario ID:", mt.GetCurrentScenario)
     try_message("UTC time:", mt.GetUTCTime)
@@ -1863,10 +2013,11 @@ def get_settings(arg):
     settings = timestamp | orient_mode | calib_mode | NED
     return settings
 
+
 def get_synchronization_settings(arg):
     """Parse command line synchronization-settings argument."""
     if arg == "clear":
-        sync_settings = [0,0,0,0,0,0,0,0]
+        sync_settings = [0, 0, 0, 0, 0, 0, 0, 0]
         return sync_settings
     else:
         # Parse each field from the argument
@@ -1889,10 +2040,11 @@ def get_synchronization_settings(arg):
 
 
 def get_UTCtime(arg):
+    """Parse command line UTC time specification."""
     # If argument is now, fill the time settings with the current time
     # else fill the time settings with the specified time
     if arg == "now":
-        timestamp = datetime.datetime.utcnow() # use datetime to get microsecond
+        timestamp = datetime.datetime.utcnow()  # use datetime to get microsec
         time_settings = []
         time_settings.append(timestamp.year)
         time_settings.append(timestamp.month)
@@ -1900,8 +2052,8 @@ def get_UTCtime(arg):
         time_settings.append(timestamp.hour)
         time_settings.append(timestamp.minute)
         time_settings.append(timestamp.second)
-        time_settings.append(timestamp.microsecond*1000) # multiply by 1000 to obtain nanoseconds
-        time_settings.append(0) # default flag to 0
+        time_settings.append(timestamp.microsecond*1000)  # *1000 to get ns
+        time_settings.append(0)  # default flag to 0
         return time_settings
     else:
         # Parse each field from the argument
@@ -1924,6 +2076,44 @@ def get_UTCtime(arg):
         else:
             print "Invalid UTCtime settings."
             return
+
+
+def get_gnss_platform(arg):
+    """Parse and check command line GNSS platform argument."""
+    try:
+        platform = int(arg)
+    except ValueError:
+        print "GNSS platform must be an integer."
+        return
+    if platform in (0, 8):
+        return platform
+    else:
+        print "Invalid GNSS platform argument (excepted 0 or 8)."
+        return
+
+
+def get_option_flags(arg):
+    """Parse and check command line option flags argument."""
+    try:
+        set_flag, clear_flag = map(lambda s: int(s.strip(), base=0),
+                                   arg.split(','))
+        return (set_flag, clear_flag)
+    except ValueError:
+        print 'incorrect option flags specification (expected a pair of '\
+              'values)'
+        return
+
+
+def get_icc_command(arg):
+    """Parse and check ICC command argument."""
+    try:
+        icc_command = int(arg, base=0)
+        if icc_command not in range(4):
+            raise ValueError
+        return icc_command
+    except ValueError:
+        print 'invalid ICC command "%s"; expected 0, 1, 2, or 3.' % arg
+        return
 
 
 if __name__ == '__main__':

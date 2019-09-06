@@ -2,7 +2,7 @@
 \mainpage
 \htmlinclude manifest.html
 
-The \b xsens_driver package provides \b mtnode.py, a generic ROS node publishing the data streamed by an XSens imu (MT, MTi, MTi-G...).
+The \b xsens_driver package provides \b mtnode.py, a generic ROS node publishing the data streamed by an XSens motion tracker (MT, MTi, MTi-G...) from third, fourth or fifth generation.
 
 \section topics Topics
 
@@ -74,9 +74,15 @@ Commands:
     -v, --verbose
         Verbose output.
     -y, --synchronization=settings (see below)
-        Configure the synchronization settings of each sync line (see below)
-    -u, --setUTCTime=time (see below)
-        Sets the UTC time buffer of the device
+        Configure the synchronization settings of each sync line (see below).
+    -u, --utc-time=time (see below)
+        Set the UTC time buffer of the device.
+    -g, --gnss-platform=platform
+        Change the GNSS navigation filter settings (check the documentation).
+    -o, --option-flags=flags (see below)
+        Set the option flags.
+    -j, --icc-command=command (see below)
+        Send command to the In-run Compass Calibration.
 
 Generic options:
     -d, --device=DEV
@@ -166,8 +172,8 @@ Configuration option:
                 "pl400fe,pa400fe,oq400fe"
 
 Synchronization settings:
-    The format follows the xsens protocol documentation. All fields are required
-    and separated by commas.
+    The format follows the xsens protocol documentation. All fields are
+    required and separated by commas.
     Note: The entire synchronization buffer is wiped every time a new one
           is set, so it is necessary to specify the settings of multiple
           lines at once.
@@ -226,7 +232,7 @@ Synchronization settings:
         To clear the synchronization settings of MTi
         ./mtdevice.py -y clear
 
-SetUTCTime settings:
+UTC time settings:
     There are two ways to set the UTCtime for the MTi.
     Option #1: set MTi to the current UTC time based on local system time with
                the option 'now'
@@ -243,13 +249,55 @@ SetUTCTime settings:
                 1: Valid Time of Week
                 2: Valid Week Number
                 4: valid UTC
-            Note: the flag is ignored for setUTCTime as it is set by the module
+            Note: the flag is ignored for --utc-time as it is set by the device
                   itself when connected to a GPS
 
     Examples:
         Set UTC time for the device:
         ./mtdevice.py -u now
         ./mtdevice.py -u 1999,1,1,0,0,0,0,0
+
+GNSS platform settings:
+    Only for MTi-G-700/710 with firmware>=1.7.
+    The following two platform settings are listed in the documentation:
+        0:  Portable
+        8:  Airbone <4g
+    Check the XSens documentation before changing anything.
+
+Option flags:
+    Several flags can be set or cleared.
+    0x00000001  DisableAutoStore: when set, configuration changes are not saved
+                    in non-volatile memory (only MTi-1 series)
+    0x00000002  DisableAutoMeasurement: when set, device will stay in Config
+                    Mode upon start up (only MTi-1 series)
+    0x00000004  EnableBeidou: when set, enable Beidou and disable GLONASS (only
+                    MTi-G-710)
+    0x00000010  EnableAHS: enable Active Heading Stabilization (overrides
+                    magnetic reference)
+    0x00000080  EnableInRunCompassCalibration: doc is unclear
+    The flags provided must be a pair of ored values: the first for flags to be
+    set the second for the flags to be cleared.
+    Examples:
+        Only set DisableAutoStore and DisableAutoMeasurement flags:
+            ./mtdevice.py -o 0x03,0x00
+        Disable AHS (clear EnableAHS flag):
+            ./mtdevice.py -o 0x00,0x10
+        Set DisableAutoStore and clear DisableAutoMeasurement:
+            ./mtdevice.py -o 0x02,0x01
+
+In-run Compass Calibration commands:
+    The idea of ICC is to record magnetic field data during so-called
+    representative motion in order to better calibrate the magnetometer and
+    improve the fusion.
+    Typical usage would be to issue the start command, then move the device
+    for some time then issue the stop command. If parameters are acceptable,
+    these can be stored using the store command.
+    Commands:
+        00: Start representative motion
+        01: Stop representative motion; return ddt, dimension, and status.
+        02: Store ICC parameters
+        03: Get representative motion state; return 1 if active
+    Check the documentation for more details.
 
 Legacy options:
     -m, --output-mode=MODE

@@ -21,7 +21,7 @@ class MTDevice(object):
     """XSens MT device communication object."""
 
     def __init__(self, port, baudrate=115200, timeout=0.002, autoconf=True,
-                 config_mode=False, verbose=False):
+                 config_mode=False, verbose=False, initial_wait=0.1):
         """Open device."""
         self.verbose = verbose
         # serial interface to the device
@@ -33,8 +33,9 @@ class MTDevice(object):
             self.device = serial.Serial(port, baudrate, timeout=timeout,
                                         writeTimeout=timeout, rtscts=True,
                                         dsrdtr=True)
-        self.device.flushInput()    # flush to make sure the port is ready
-        self.device.flushOutput()    # flush to make sure the port is ready
+        time.sleep(initial_wait)  # open returns before device is ready
+        self.device.flushInput()
+        self.device.flushOutput()
         # timeout for communication
         self.timeout = 100*timeout
         # state of the device
@@ -69,7 +70,10 @@ class MTDevice(object):
         start = time.time()
         while ((time.time()-start) < self.timeout) and self.device.read():
             pass
-        self.device.write(msg)
+        try:
+            self.device.write(msg)
+        except serial.serialutil.SerialTimeoutException:
+            raise MTTimeoutException("writing message")
         if self.verbose:
             print "MT: Write message id 0x%02X (%s) with %d data bytes: "\
                   "[%s]" % (mid, getMIDName(mid), length,
@@ -158,17 +162,22 @@ class MTDevice(object):
         else:
             raise MTException("could not find message.")
 
-    def write_ack(self, mid, data=b'', n_retries=500):
+    def write_ack(self, mid, data=b'', n_resend=30, n_read=25):
         """Send a message and read confirmation."""
-        self.write_msg(mid, data)
-        for _ in range(n_retries):
-            mid_ack, data_ack = self.read_msg()
-            if mid_ack == (mid+1):
-                break
-            elif self.verbose:
-                print "ack (0x%02X) expected, got 0x%02X instead" % \
-                    (mid+1, mid_ack)
+        for _ in range(n_resend):
+            self.write_msg(mid, data)
+            for _ in range(n_read):
+                mid_ack, data_ack = self.read_msg()
+                if mid_ack == (mid+1):
+                    break
+                elif self.verbose:
+                    print "ack (0x%02X) expected, got 0x%02X instead" % \
+                        (mid+1, mid_ack)
+            else:  # inner look not broken
+                continue  # retry (send+wait)
+            break  # still no luck
         else:
+            n_retries = n_resend*n_read
             raise MTException("Ack (0x%02X) expected, MID 0x%02X received "
                               "instead (after %d retries)." % (mid+1, mid_ack,
                                                                n_retries))
@@ -432,8 +441,16 @@ class MTDevice(object):
         self._ensure_config_state()
         data = struct.pack('!B', parameter)
         data = self.write_ack(MID.SetAlignmentRotation, data)
-        q0, q1, q2, q3 = struct.unpack('!ffff', data)
-        return q0, q1, q2, q3
+        if len(data) == 16:  # fix for older firmwares
+            q0, q1, q2, q3 = struct.unpack('!ffff', data)
+            return parameter, (q0, q1, q2, q3)
+        elif len(data) == 17:
+            param, q0, q1, q2, q3 = struct.unpack('!Bffff', data)
+            return param, (q0, q1, q2, q3)
+        else:
+            raise MTException('Could not parse ReqAlignmentRotationAck message:'
+                              ' wrong size of message (%d instead of either 16 '
+                              'or 17).' % len(data))
 
     def SetAlignmentRotation(self, parameter, quaternion):
         """Set the object alignment.
@@ -1156,13 +1173,13 @@ class MTDevice(object):
 ################################################################
 # Auto detect port
 ################################################################
-def find_devices(verbose=False):
+def find_devices(timeout=0.002, verbose=False, initial_wait=0.1):
     mtdev_list = []
     for port in glob.glob("/dev/tty*S*"):
         if verbose:
             print "Trying '%s'" % port
         try:
-            br = find_baudrate(port, verbose)
+            br = find_baudrate(port, timeout, verbose, initial_wait)
             if br:
                 mtdev_list.append((port, br))
         except MTException:
@@ -1173,14 +1190,15 @@ def find_devices(verbose=False):
 ################################################################
 # Auto detect baudrate
 ################################################################
-def find_baudrate(port, verbose=False):
+def find_baudrate(port, timeout=0.002, verbose=False, initial_wait=0.1):
     baudrates = (115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
     for br in baudrates:
         if verbose:
             print "Trying %d bd:" % br,
             sys.stdout.flush()
         try:
-            mt = MTDevice(port, br, verbose=verbose)
+            mt = MTDevice(port, br, timeout=timeout, verbose=verbose,
+                          initial_wait=initial_wait)
         except serial.SerialException:
             if verbose:
                 print "fail: unable to open device."
@@ -1243,6 +1261,10 @@ Generic options:
     -b, --baudrate=BAUD
         Baudrate of serial interface (default: 115200). If 0, then all
         rates are tried until a suitable one is found.
+    -t, --timeout=TIMEOUT
+        Timeout of serial communication in second (default: 0.002).
+    -w, --initial-wait=WAIT
+        Initial wait to allow device to be ready in second (default: 0.1).
 
 Configuration option:
     OUTPUT
@@ -1508,13 +1530,13 @@ Deprecated options:
 ################################################################
 def main():
     # parse command line
-    shopts = 'hra:c:eild:b:m:s:p:f:x:vy:u:g:o:j:'
+    shopts = 'hra:c:eild:b:m:s:p:f:x:vy:u:g:o:j:t:w:'
     lopts = ['help', 'reset', 'change-baudrate=', 'configure=', 'echo',
              'inspect', 'legacy-configure', 'device=', 'baudrate=',
              'output-mode=', 'output-settings=', 'period=',
              'deprecated-skip-factor=', 'xkf-scenario=', 'verbose',
              'synchronization=', 'utc-time=', 'gnss-platform=',
-             'option-flags=', 'icc-command=']
+             'option-flags=', 'icc-command=', 'timeout=', 'initial-wait=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
     except getopt.GetoptError, e:
@@ -1524,6 +1546,8 @@ def main():
     # default values
     device = '/dev/ttyUSB0'
     baudrate = 115200
+    timeout = 0.002
+    initial_wait = 0.1
     mode = None
     settings = None
     period = None
@@ -1599,7 +1623,7 @@ def main():
             except ValueError:
                 print "period argument must be integer."
                 return 1
-        elif o in ('-f', '--skip-factor'):
+        elif o in ('-f', '--deprecated-skip-factor'):
             try:
                 skipfactor = int(a)
             except ValueError:
@@ -1622,12 +1646,26 @@ def main():
             if icc_command is None:
                 return 1
             actions.append('icc-command')
+        elif o in ('-t', '--timeout'):
+            try:
+                timeout = float(a)
+            except ValueError:
+                print "timeout argument must be a floating number."
+                return 1
+        elif o in ('-w', '--initial-wait'):
+            try:
+                initial_wait = float(a)
+            except ValueError:
+                print "initial-wait argument must be a floating number."
+                return 1
+
     # if nothing else: echo
     if len(actions) == 0:
         actions.append('echo')
     try:
         if device == 'auto':
-            devs = find_devices(verbose)
+            devs = find_devices(timeout=timeout, verbose=verbose,
+                                initial_wait=initial_wait)
             if devs:
                 print "Detected devices:", "".join('\n\t%s @ %d' % (d, p)
                                                    for d, p in devs)
@@ -1638,13 +1676,15 @@ def main():
                 return 1
         # find baudrate
         if not baudrate:
-            baudrate = find_baudrate(device, verbose)
+            baudrate = find_baudrate(device, timeout=timeout, verbose=verbose,
+                                     initial_wait=initial_wait)
         if not baudrate:
             print "No suitable baudrate found."
             return 1
         # open device
         try:
-            mt = MTDevice(device, baudrate, verbose=verbose)
+            mt = MTDevice(device, baudrate, timeout=timeout, verbose=verbose,
+                          initial_wait=initial_wait)
         except serial.SerialException:
             raise MTException("unable to open %s" % device)
         # execute actions

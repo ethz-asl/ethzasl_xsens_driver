@@ -2,6 +2,35 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.2.2 (2018-08-02)
+------------------
+* fix exception while closing node
+* Contributors: Francis Colas
+
+2.2.1 (2018-08-02)
+------------------
+* fix frame reorientation (only for orientation and linear velocity)
+* fix skip-factor command line (`#80 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/80>`_)
+* Contributors: Francis Colas
+
+2.2.0 (2018-07-16)
+------------------
+* initial_wait argument for MTDevice, node and launch file
+* separate gps_msg from Position Data
+* handle both alignment rotation versions
+* fix GetAlignmentRotation
+* new timeout command line argument
+* catch timeout exception while writing messages
+* Feat/configurable covariance diagonals (`#65 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/65>`_)
+* catch timeout exception during inspect (`#60 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/60>`_)
+* Fix conversion from UTC to epoch time for /time_reference (`#56 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/56>`_)
+* fix bug in sample time fine
+* add missing package dependency on python-serial (`#54 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/54>`_)
+* support delta q (`#49 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/49>`_)
+* Synchronization settings and UTC time extension (`#46 <https://github.com/ethz-asl/ethzasl_xsens_driver/issues/46>`_)
+* full list of error codes and messages
+* Contributors: Alex Naiman, Atsushi Watanabe, Di Zeng, Francis Colas, Rein Appeldoorn, juichung kuo
+
 2.1.0 (2017-04-14)
 ------------------
 * Add no_rotation_duration option

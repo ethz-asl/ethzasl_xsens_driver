@@ -27,7 +27,7 @@ class MTDevice(object):
         # serial interface to the device
         try:
             self.device = serial.Serial(port, baudrate, timeout=timeout,
-                                        writeTimeout=timeout)
+                                        writeTimeout=timeout,rtscts=True, dsrdtr=True)
         except IOError:
             # FIXME with pyserial3 we might need some specific flags
             self.device = serial.Serial(port, baudrate, timeout=timeout,

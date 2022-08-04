@@ -64,7 +64,7 @@ class MTDevice(object):
         else:
             lendat = struct.pack('!B', length)
         packet = b'\xFA\xFF' + struct.pack('!B', mid) + lendat + data
-        packet += struct.pack('!B', 0xFF & (-(sum(map(ord, packet[1:])))))
+        packet += struct.pack('!B', 0xFF & (-(sum(packet[1:]))))
         msg = packet
         start = time.time()
         while ((time.time()-start) < self.timeout) and self.device.read():
@@ -86,8 +86,8 @@ class MTDevice(object):
             if len(buf) == size:
                 return buf
             if self.verbose:
-                print("waiting for %d bytes, got %d so far: [%s]") % \
-                    (size, len(buf), ' '.join('%02X' % v for v in buf))
+                print("waiting for %d bytes, got %d so far: [%s]" %
+                      (size, len(buf), ' '.join([f'{v:02X}' for v in buf])))
         raise MTTimeoutException("waiting for message")
 
     def read_data_msg(self, buf=bytearray()):
@@ -155,7 +155,7 @@ class MTDevice(object):
                 print("MT: Got message id 0x%02X (%s) with %d data bytes: "
                       "[%s]".format(mid, getMIDName(mid), length,
                                     ' '.join("%02X".format(v) for v in data)))
-            if mid == MID.Error:
+            if mid == MID.Error.value:
                 raise MTErrorMessage(data[0])
             return (mid, buf[:-1])
         else:
@@ -170,8 +170,7 @@ class MTDevice(object):
                 if mid_ack == (mid+1):
                     break
                 elif self.verbose:
-                    print("ack (0x%02X) expected, got 0x%02X instead") % \
-                        (mid+1, mid_ack)
+                    print("ack (0x%02X) expected, got 0x%02X instead" % (mid+1, mid_ack))
             else:  # inner look not broken
                 continue  # retry (send+wait)
             break  # still no luck
@@ -201,51 +200,51 @@ class MTDevice(object):
         If go_to_config then send WakeUpAck in order to leave the device in
         config mode.
         """
-        self.write_ack(MID.Reset)
+        self.write_ack(MID.Reset.value)
         if go_to_config:
             time.sleep(0.01)
             mid, _ = self.read_msg()
-            if mid == MID.WakeUp:
-                self.write_msg(MID.WakeUpAck)
+            if mid == MID.WakeUp.value:
+                self.write_msg(MID.WakeUpAck.value)
                 self.state = DeviceState.Config
         else:
             self.state = DeviceState.Measurement
 
     def GoToConfig(self):
         """Place MT device in configuration mode."""
-        self.write_ack(MID.GoToConfig)
+        self.write_ack(MID.GoToConfig.value)
         self.state = DeviceState.Config
 
     def GoToMeasurement(self):
         """Place MT device in measurement mode."""
         self._ensure_config_state()
-        self.write_ack(MID.GoToMeasurement)
+        self.write_ack(MID.GoToMeasurement.value)
         self.state = DeviceState.Measurement
 
     def GetDeviceID(self):
         """Get the device identifier."""
         self._ensure_config_state()
-        data = self.write_ack(MID.ReqDID)
+        data = self.write_ack(MID.ReqDID.value)
         deviceID, = struct.unpack('!I', data)
         return deviceID
 
     def GetProductCode(self):
         """Get the product code."""
         self._ensure_config_state()
-        data = self.write_ack(MID.ReqProductCode)
+        data = self.write_ack(MID.ReqProductCode.value)
         return str(data).strip()
 
     def GetHardwareVersion(self):
         """Get the hardware version."""
         self._ensure_config_state()
-        data = self.write_ack(MID.ReqHardwareVersion)
+        data = self.write_ack(MID.ReqHardwareVersion.value)
         major, minor = struct.unpack('!BB', data)
         return (major, minor)
 
     def GetFirmwareRev(self):
         """Get the firmware version."""
         self._ensure_config_state()
-        data = self.write_ack(MID.ReqFWRev)
+        data = self.write_ack(MID.ReqFWRev.value)
         if len(data) == 3:
             major, minor, revision = struct.unpack('!BBB', data)
             return (major, minor, revision)
@@ -257,7 +256,7 @@ class MTDevice(object):
     def RunSelfTest(self):
         """Run the built-in self test."""
         self._ensure_config_state()
-        data = self.write_ack(MID.RunSelfTest)
+        data = self.write_ack(MID.RunSelfTest.value)
         bit_names = ['accX', 'accY', 'accZ', 'gyrX', 'gyrY', 'gyrZ',
                      'magX', 'magY', 'magZ']
         self_test_results = []
@@ -268,18 +267,18 @@ class MTDevice(object):
     def GetBaudrate(self):
         """Get the current baudrate id of the device."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetBaudrate)
+        data = self.write_ack(MID.SetBaudrate.value)
         return data[0]
 
     def SetBaudrate(self, brid):
         """Set the baudrate of the device using the baudrate id."""
         self._ensure_config_state()
-        self.write_ack(MID.SetBaudrate, (brid,))
+        self.write_ack(MID.SetBaudrate.value, (brid,))
 
     def GetErrorMode(self):
         """Get the current error mode of the device."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetErrorMode)
+        data = self.write_ack(MID.SetErrorMode.value)
         error_mode, = struct.unpack('!H', data)
         return error_mode
 
@@ -298,12 +297,12 @@ class MTDevice(object):
         """
         self._ensure_config_state()
         data = struct.pack('!H', error_mode)
-        self.write_ack(MID.SetErrorMode, data)
+        self.write_ack(MID.SetErrorMode.value, data)
 
     def GetOptionFlags(self):
         """Get the option flags (MTi-1 series)."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetOptionFlags)
+        data = self.write_ack(MID.SetOptionFlags.value)
         flags, = struct.unpack('!I', data)
         return flags
 
@@ -311,12 +310,12 @@ class MTDevice(object):
         """Set the option flags (MTi-1 series)."""
         self._ensure_config_state()
         data = struct.pack('!II', set_flags, clear_flags)
-        self.write_ack(MID.SetOptionFlags, data)
+        self.write_ack(MID.SetOptionFlags.value, data)
 
     def GetLocationID(self):
         """Get the location ID of the device."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetLocationID)
+        data = self.write_ack(MID.SetLocationID.value)
         location_id, = struct.unpack('!H', data)
         return location_id
 
@@ -324,18 +323,18 @@ class MTDevice(object):
         """Set the location ID of the device (arbitrary)."""
         self._ensure_config_state()
         data = struct.pack('!H', location_id)
-        self.write_ack(MID.SetLocationID, data)
+        self.write_ack(MID.SetLocationID.value, data)
 
     def RestoreFactoryDefaults(self):
         """Restore MT device configuration to factory defaults (soft version).
         """
         self._ensure_config_state()
-        self.write_ack(MID.RestoreFactoryDef)
+        self.write_ack(MID.RestoreFactoryDef.value)
 
     def GetTransmitDelay(self):
         """Get the transmission delay (only RS485)."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetTransmitDelay)
+        data = self.write_ack(MID.SetTransmitDelay.value)
         transmit_delay, = struct.unpack('!H', data)
         return transmit_delay
 
@@ -343,12 +342,12 @@ class MTDevice(object):
         """Set the transmission delay (only RS485)."""
         self._ensure_config_state()
         data = struct.pack('!H', transmit_delay)
-        self.write_ack(MID.SetTransmitDelay, data)
+        self.write_ack(MID.SetTransmitDelay.value, data)
 
     def GetSyncSettings(self):
         """Get the synchronisation settings."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetSyncSettings)
+        data = self.write_ack(MID.SetSyncSettings.value)
         sync_settings = [struct.unpack('!BBBBHHHH', data[o:o+12])
                          for o in range(0, len(data), 12)]
         return sync_settings
@@ -358,12 +357,12 @@ class MTDevice(object):
         self._ensure_config_state()
         data = b''.join(struct.pack('!BBBBHHHH', *sync_setting)
                         for sync_setting in sync_settings)
-        self.write_ack(MID.SetSyncSettings, data)
+        self.write_ack(MID.SetSyncSettings.value, data)
 
     def GetConfiguration(self):
         """Ask for the current configuration of the MT device."""
         self._ensure_config_state()
-        config = self.write_ack(MID.ReqConfiguration)
+        config = self.write_ack(MID.ReqConfiguration.value)
         try:
             masterID, period, skipfactor, _, _, _, date, time, num, deviceID,\
                 length, mode, settings =\
@@ -392,7 +391,7 @@ class MTDevice(object):
     def GetOutputConfiguration(self):
         """Get the output configuration of the device (mark IV)."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetOutputConfiguration)
+        data = self.write_ack(MID.SetOutputConfiguration.value)
         output_configuration = [struct.unpack('!HH', data[o:o+4])
                                 for o in range(0, len(data), 4)]
         return output_configuration
@@ -402,12 +401,12 @@ class MTDevice(object):
         self._ensure_config_state()
         data = b''.join(struct.pack('!HH', *output)
                         for output in output_configuration)
-        self.write_ack(MID.SetOutputConfiguration, data)
+        self.write_ack(MID.SetOutputConfiguration.value, data)
 
     def GetStringOutputType(self):
         """Get the NMEA data output configuration."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetStringOutputType)
+        data = self.write_ack(MID.SetStringOutputType.value)
         string_output_type, = struct.unpack('!H', data)
         return string_output_type
 
@@ -415,12 +414,12 @@ class MTDevice(object):
         """Set the configuration of the NMEA data output."""
         self._ensure_config_state()
         data = struct.pack('!H', string_output_type)
-        self.write_ack(MID.SetStringOutputType, data)
+        self.write_ack(MID.SetStringOutputType.value, data)
 
     def GetPeriod(self):
         """Get the sampling period."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetPeriod)
+        data = self.write_ack(MID.SetPeriod.value)
         period, = struct.unpack('!H', data)
         return period
 
@@ -428,7 +427,7 @@ class MTDevice(object):
         """Set the sampling period."""
         self._ensure_config_state()
         data = struct.pack('!H', period)
-        self.write_ack(MID.SetPeriod, data)
+        self.write_ack(MID.SetPeriod.value, data)
 
     def GetAlignmentRotation(self, parameter):
         """Get the object alignment.
@@ -439,7 +438,7 @@ class MTDevice(object):
         """
         self._ensure_config_state()
         data = struct.pack('!B', parameter)
-        data = self.write_ack(MID.SetAlignmentRotation, data)
+        data = self.write_ack(MID.SetAlignmentRotation.value, data)
         if len(data) == 16:  # fix for older firmwares
             q0, q1, q2, q3 = struct.unpack('!ffff', data)
             return parameter, (q0, q1, q2, q3)
@@ -460,12 +459,12 @@ class MTDevice(object):
         """
         self._ensure_config_state()
         data = struct.pack('!Bffff', parameter, *quaternion)
-        self.write_ack(MID.SetAlignmentRotation, data)
+        self.write_ack(MID.SetAlignmentRotation.value, data)
 
     def GetOutputMode(self):
         """Get current output mode."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetOutputMode)
+        data = self.write_ack(MID.SetOutputMode.value)
         self.mode, = struct.unpack('!H', data)
         return self.mode
 
@@ -473,13 +472,13 @@ class MTDevice(object):
         """Select which information to output."""
         self._ensure_config_state()
         data = struct.pack('!H', mode)
-        self.write_ack(MID.SetOutputMode, data)
+        self.write_ack(MID.SetOutputMode.value, data)
         self.mode = mode
 
     def GetExtOutputMode(self):
         """Get current extended output mode (for alternative UART)."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetExtOutputMode)
+        data = self.write_ack(MID.SetExtOutputMode.value)
         ext_mode, = struct.unpack('!H', data)
         return ext_mode
 
@@ -487,12 +486,12 @@ class MTDevice(object):
         """Set extended output mode (for alternative UART)."""
         self._ensure_config_state()
         data = struct.pack('!H', ext_mode)
-        self.write_ack(MID.SetExtOutputMode, data)
+        self.write_ack(MID.SetExtOutputMode.value, data)
 
     def GetOutputSettings(self):
         """Get current output mode."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetOutputSettings)
+        data = self.write_ack(MID.SetOutputSettings.value)
         self.settings, = struct.unpack('!I', data)
         return self.settings
 
@@ -500,20 +499,20 @@ class MTDevice(object):
         """Select how to output the information."""
         self._ensure_config_state()
         data = struct.pack('!I', settings)
-        self.write_ack(MID.SetOutputSettings, data)
+        self.write_ack(MID.SetOutputSettings.value, data)
         self.settings = settings
 
     def SetOutputSkipFactor(self, skipfactor):  # deprecated
         """Set the output skip factor."""
         self._ensure_config_state()
         data = struct.pack('!H', skipfactor)
-        self.write_ack(DeprecatedMID.SetOutputSkipFactor, data)
+        self.write_ack(DeprecatedMID.SetOutputSkipFactor.value, data)
 
     def ReqDataLength(self):  # deprecated
         """Get data length for mark III devices."""
         self._ensure_config_state()
         try:
-            data = self.write_ack(DeprecatedMID.ReqDataLength)
+            data = self.write_ack(DeprecatedMID.ReqDataLength.value)
         except MTErrorMessage as e:
             if e.code == 0x04:
                 sys.stderr.write("ReqDataLength message is deprecated and not "
@@ -532,7 +531,7 @@ class MTDevice(object):
         It is used internally for local magnetic declination and local gravity.
         """
         self._ensure_config_state()
-        data = self.write_ack(MID.SetLatLonAlt)
+        data = self.write_ack(MID.SetLatLonAlt.value)
         if len(data) == 24:
             lat, lon, alt = struct.unpack('!ddd', data)
         elif len(data) == 12:
@@ -548,15 +547,15 @@ class MTDevice(object):
         """
         self._ensure_config_state()
         data = struct.pack('!ddd', lat, lon, alt)
-        self.write_ack(MID.SetLatLonAlt, data)
+        self.write_ack(MID.SetLatLonAlt.value, data)
 
     def GetAvailableScenarios(self):
         """Get the available XKF scenarios on the device."""
         self._ensure_config_state()
-        data = self.write_ack(MID.ReqAvailableScenarios)
+        data = self.write_ack(MID.ReqAvailableScenarios.value)
         scenarios = []
         try:
-            for i in range(len(data)/22):
+            for i in range(len(data)//22):
                 scenario_type, version, label =\
                     struct.unpack('!BB20s', data[22*i:22*(i+1)])
                 scenarios.append((scenario_type, version, label.strip()))
@@ -569,7 +568,7 @@ class MTDevice(object):
     def GetCurrentScenario(self):
         """Get the ID of the currently used XKF scenario."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetCurrentScenario)
+        data = self.write_ack(MID.SetCurrentScenario.value)
         _, self.scenario_id = struct.unpack('!BB', data)  # version, id
         return self.scenario_id
 
@@ -577,7 +576,7 @@ class MTDevice(object):
         """Set the XKF scenario to use."""
         self._ensure_config_state()
         data = struct.pack('!BB', 0, scenario_id)  # version, id
-        self.write_ack(MID.SetCurrentScenario, data)
+        self.write_ack(MID.SetCurrentScenario.value, data)
 
     # New names in mk5
     GetAvailableFilterProfiles = GetAvailableScenarios
@@ -587,7 +586,7 @@ class MTDevice(object):
     def GetGnssPlatform(self):
         """Get the current GNSS navigation filter settings."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetGnssPlatform)
+        data = self.write_ack(MID.SetGnssPlatform.value)
         platform, = struct.unpack('!H', data)
         return platform
 
@@ -595,7 +594,7 @@ class MTDevice(object):
         """Set the GNSS navigation filter settings."""
         self._ensure_config_state()
         data = struct.pack('!H', platform)
-        self.write_ack(MID.SetGnssPlatform, data)
+        self.write_ack(MID.SetGnssPlatform.value, data)
 
     def ResetOrientation(self, code):
         """Reset the orientation.
@@ -606,18 +605,18 @@ class MTDevice(object):
             0x0003: object reset.
         """
         data = struct.pack('!H', code)
-        self.write_ack(MID.ResetOrientation, data)
+        self.write_ack(MID.ResetOrientation.value, data)
 
     def SetNoRotation(self, duration):
         """Initiate the "no rotation" procedure to estimate gyro biases."""
         self._ensure_measurement_state()
         data = struct.pack('!H', duration)
-        self.write_ack(MID.SetNoRotation, data)
+        self.write_ack(MID.SetNoRotation.value, data)
 
     def GetUTCTime(self):
         """Get UTC time from device."""
         self._ensure_config_state()
-        data = self.write_ack(MID.SetUTCTime)
+        data = self.write_ack(MID.SetUTCTime.value)
         ns, year, month, day, hour, minute, second, flag = \
             struct.unpack('!IHBBBBBB', data)
         return (ns, year, month, day, hour, minute, second, flag)
@@ -627,25 +626,25 @@ class MTDevice(object):
         self._ensure_config_state()
         data = struct.pack('!IHBBBBBB', ns, year, month, day, hour, minute,
                            second, flag)  # no clue what setting flag can mean
-        self.write_ack(MID.SetUTCTime, data)
+        self.write_ack(MID.SetUTCTime.value, data)
 
     def AdjustUTCTime(self, ticks):
         """Adjust UTC Time of device using correction ticks (0.1 ms)."""
         self._ensure_config_state()
         data = struct.pack('!i', ticks)
-        self.write(MID.AdjustUTCTime, data)  # no ack mentioned in the doc
+        self.write(MID.AdjustUTCTime.value, data)  # no ack mentioned in the doc
 
     def IccCommand(self, command):
         """Command of In-run Compass Calibration (ICC)."""
         if command not in (0, 1, 2, 3):
             raise MTException("unknown ICC command 0x%02X" % command)
         cmd_data = struct.pack('!B', command)
-        res_data = self.write_ack(MID.IccCommand, cmd_data)
+        res_data = self.write_ack(MID.IccCommand.value, cmd_data)
         cmd_ack = struct.unpack('!B', res_data[:1])
         payload = res_data[1:]
         if cmd_ack != command:
             raise MTException("expected ack of command 0x%02X; got 0x%02X "
-                              "instead" % (command, cmd_ack))
+                              "instead".format(command, cmd_ack))
         if cmd_ack == 0:
             return
         elif cmd_ack == 1:
@@ -693,9 +692,9 @@ class MTDevice(object):
         # getting data
         # data = self.read_data_msg()
         mid, data = self.read_msg()
-        if mid == MID.MTData:
+        if mid == MID.MTData.value:
             return self.parse_MTData(data, mode, settings)
-        elif mid == MID.MTData2:
+        elif mid == MID.MTData2.value:
             return self.parse_MTData2(data)
         else:
             raise MTException("unknown data message: mid=0x%02X (%s)." %
@@ -980,7 +979,7 @@ class MTDevice(object):
                     raise MTException("fixed point precision not supported.")
                 content = data[3:3+size]
                 data = data[3+size:]
-                group = data_id & 0xF800
+                group = XDIGroup(data_id & 0xF800)
                 ffmt = float_format
                 if group == XDIGroup.Temperature:
                     output.setdefault('Temperature', {}).update(
@@ -1028,7 +1027,7 @@ class MTDevice(object):
                     raise MTException("unknown XDI group: 0x%04X." % group)
             except struct.error:
                 raise MTException("couldn't parse MTData2 message (data_id: "
-				  "0x%04X, size: %d)." % (data_id, size))
+                                  "0x%04X, size: %d)." % (data_id, size))
         return output
 
     def parse_MTData(self, data, mode=None, settings=None):
@@ -1042,7 +1041,7 @@ class MTDevice(object):
         output = {}
         try:
             # raw IMU first
-            if mode & OutputMode.RAW:
+            if mode & OutputMode.RAW.value:
                 o = {}
                 o['accX'], o['accY'], o['accZ'], o['gyrX'], o['gyrY'], \
                     o['gyrZ'], o['magX'], o['magY'], o['magZ'], o['temp'] =\
@@ -1050,7 +1049,7 @@ class MTDevice(object):
                 data = data[20:]
                 output['RAW'] = o
             # raw GPS second
-            if mode & OutputMode.RAWGPS:
+            if mode & OutputMode.RAWGPS.value:
                 o = {}
                 o['Press'], o['bPrs'], o['ITOW'], o['LAT'], o['LON'],\
                     o['ALT'], o['VEL_N'], o['VEL_E'], o['VEL_D'], o['Hacc'],\
@@ -1059,71 +1058,71 @@ class MTDevice(object):
                 data = data[44:]
                 output['RAWGPS'] = o
             # temperature
-            if mode & OutputMode.Temp:
+            if mode & OutputMode.Temp.value:
                 temp, = struct.unpack('!f', data[:4])
                 data = data[4:]
                 output['Temp'] = temp
             # calibrated data
-            if mode & OutputMode.Calib:
+            if mode & OutputMode.Calib.value:
                 o = {}
-                if (settings & OutputSettings.Coordinates_NED):
+                if (settings & OutputSettings.Coordinates_NED.value):
                     o['frame'] = 'NED'
                 else:
                     o['frame'] = 'ENU'
-                if not (settings & OutputSettings.CalibMode_GyrMag):
+                if not (settings & OutputSettings.CalibMode_GyrMag.value):
                     o['accX'], o['accY'], o['accZ'] = struct.unpack('!3f',
                                                                     data[:12])
                     data = data[12:]
-                if not (settings & OutputSettings.CalibMode_AccMag):
+                if not (settings & OutputSettings.CalibMode_AccMag.value):
                     o['gyrX'], o['gyrY'], o['gyrZ'] = struct.unpack('!3f',
                                                                     data[:12])
                     data = data[12:]
-                if not (settings & OutputSettings.CalibMode_AccGyr):
+                if not (settings & OutputSettings.CalibMode_AccGyr.value):
                     o['magX'], o['magY'], o['magZ'] = struct.unpack('!3f',
                                                                     data[:12])
                     data = data[12:]
                 output['Calib'] = o
             # orientation
-            if mode & OutputMode.Orient:
+            if mode & OutputMode.Orient.value:
                 o = {}
-                if (settings & OutputSettings.Coordinates_NED):
+                if (settings & OutputSettings.Coordinates_NED.value):
                     o['frame'] = 'NED'
                 else:
                     o['frame'] = 'ENU'
-                if settings & OutputSettings.OrientMode_Euler:
+                if settings & OutputSettings.OrientMode_Euler.value:
                     o['roll'], o['pitch'], o['yaw'] = struct.unpack('!3f',
                                                                     data[:12])
                     data = data[12:]
-                elif settings & OutputSettings.OrientMode_Matrix:
+                elif settings & OutputSettings.OrientMode_Matrix.value:
                     a, b, c, d, e, f, g, h, i = struct.unpack('!9f',
                                                               data[:36])
                     data = data[36:]
                     o['matrix'] = ((a, b, c), (d, e, f), (g, h, i))
-                else:  # OutputSettings.OrientMode_Quaternion:
+                else:  # OutputSettings.OrientMode_Quaternion.value:
                     q0, q1, q2, q3 = struct.unpack('!4f', data[:16])
                     data = data[16:]
                     o['quaternion'] = (q0, q1, q2, q3)
                 output['Orient'] = o
             # auxiliary
-            if mode & OutputMode.Auxiliary:
+            if mode & OutputMode.Auxiliary.value:
                 o = {}
-                if not (settings & OutputSettings.AuxiliaryMode_NoAIN1):
+                if not (settings & OutputSettings.AuxiliaryMode_NoAIN1.value):
                     o['Ain_1'], = struct.unpack('!H', data[:2])
                     data = data[2:]
-                if not (settings & OutputSettings.AuxiliaryMode_NoAIN2):
+                if not (settings & OutputSettings.AuxiliaryMode_NoAIN2.value):
                     o['Ain_2'], = struct.unpack('!H', data[:2])
                     data = data[2:]
                 output['Auxiliary'] = o
             # position
-            if mode & OutputMode.Position:
+            if mode & OutputMode.Position.value:
                 o = {}
                 o['Lat'], o['Lon'], o['Alt'] = struct.unpack('!3f', data[:12])
                 data = data[12:]
                 output['Pos'] = o
             # velocity
-            if mode & OutputMode.Velocity:
+            if mode & OutputMode.Velocity.value:
                 o = {}
-                if (settings & OutputSettings.Coordinates_NED):
+                if (settings & OutputSettings.Coordinates_NED.value):
                     o['frame'] = 'NED'
                 else:
                     o['frame'] = 'ENU'
@@ -1132,17 +1131,17 @@ class MTDevice(object):
                 data = data[12:]
                 output['Vel'] = o
             # status
-            if mode & OutputMode.Status:
+            if mode & OutputMode.Status.value:
                 status, = struct.unpack('!B', data[:1])
                 data = data[1:]
                 output['Stat'] = status
             # sample counter
-            if settings & OutputSettings.Timestamp_SampleCnt:
+            if settings & OutputSettings.Timestamp_SampleCnt.value:
                 TS, = struct.unpack('!H', data[:2])
                 data = data[2:]
                 output['Sample'] = TS
             # UTC time
-            if settings & OutputSettings.Timestamp_UTCTime:
+            if settings & OutputSettings.Timestamp_UTCTime.value:
                 o = {}
                 o['ns'], o['Year'], o['Month'], o['Day'], o['Hour'],\
                     o['Minute'], o['Second'], o['Flags'] = struct.unpack(
@@ -1166,7 +1165,7 @@ class MTDevice(object):
         # self.device.flush()
         time.sleep(0.01)
         self.read_msg()
-        self.write_msg(MID.WakeUpAck)
+        self.write_msg(MID.WakeUpAck.value)
 
 
 ################################################################
@@ -1193,7 +1192,7 @@ def find_baudrate(port, timeout=0.002, verbose=False, initial_wait=0.1):
     baudrates = (115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
     for br in baudrates:
         if verbose:
-            print("Trying %d bd:") % br,
+            print("Trying %d bd:".format(br)),
             sys.stdout.flush()
         try:
             mt = MTDevice(port, br, timeout=timeout, verbose=verbose,
@@ -1935,23 +1934,23 @@ def get_mode(arg):
     mode = 0
     for c in arg:
         if c == 't':
-            mode |= OutputMode.Temp
+            mode |= OutputMode.Temp.value
         elif c == 'c':
-            mode |= OutputMode.Calib
+            mode |= OutputMode.Calib.value
         elif c == 'o':
-            mode |= OutputMode.Orient
+            mode |= OutputMode.Orient.value
         elif c == 'a':
-            mode |= OutputMode.Auxiliary
+            mode |= OutputMode.Auxiliary.value
         elif c == 'p':
-            mode |= OutputMode.Position
+            mode |= OutputMode.Position.value
         elif c == 'v':
-            mode |= OutputMode.Velocity
+            mode |= OutputMode.Velocity.value
         elif c == 's':
-            mode |= OutputMode.Status
+            mode |= OutputMode.Status.value
         elif c == 'g':
-            mode |= OutputMode.RAWGPS
+            mode |= OutputMode.RAWGPS.value
         elif c == 'r':
-            mode |= OutputMode.RAW
+            mode |= OutputMode.RAW.value
         else:
             print("Unknown output-mode specifier: '%s'") % c
             return
@@ -1979,33 +1978,33 @@ def get_settings(arg):
     # strings settings specification
     timestamp = 0
     orient_mode = 0
-    calib_mode = OutputSettings.CalibMode_Mask
+    calib_mode = OutputSettings.CalibMode_Mask.value
     NED = 0
     for c in arg:
         if c == 't':
-            timestamp = OutputSettings.Timestamp_SampleCnt
+            timestamp = OutputSettings.Timestamp_SampleCnt.value
         elif c == 'n':
-            timestamp = OutputSettings.Timestamp_None
+            timestamp = OutputSettings.Timestamp_None.value
         elif c == 'u':
-            timestamp |= OutputSettings.Timestamp_UTCTime
+            timestamp |= OutputSettings.Timestamp_UTCTime.value
         elif c == 'q':
-            orient_mode = OutputSettings.OrientMode_Quaternion
+            orient_mode = OutputSettings.OrientMode_Quaternion.value
         elif c == 'e':
-            orient_mode = OutputSettings.OrientMode_Euler
+            orient_mode = OutputSettings.OrientMode_Euler.value
         elif c == 'm':
-            orient_mode = OutputSettings.OrientMode_Matrix
+            orient_mode = OutputSettings.OrientMode_Matrix.value
         elif c == 'A':
-            calib_mode &= OutputSettings.CalibMode_Acc
+            calib_mode &= OutputSettings.CalibMode_Acc.value
         elif c == 'G':
-            calib_mode &= OutputSettings.CalibMode_Gyr
+            calib_mode &= OutputSettings.CalibMode_Gyr.value
         elif c == 'M':
-            calib_mode &= OutputSettings.CalibMode_Mag
+            calib_mode &= OutputSettings.CalibMode_Mag.value
         elif c == 'i':
-            calib_mode &= OutputSettings.AuxiliaryMode_NoAIN2
+            calib_mode &= OutputSettings.AuxiliaryMode_NoAIN2.value
         elif c == 'j':
-            calib_mode &= OutputSettings.AuxiliaryMode_NoAIN1
+            calib_mode &= OutputSettings.AuxiliaryMode_NoAIN1.value
         elif c == 'N':
-            NED = OutputSettings.Coordinates_NED
+            NED = OutputSettings.Coordinates_NED.value
         else:
             print("Unknown output-settings specifier: '%s'") % c
             return

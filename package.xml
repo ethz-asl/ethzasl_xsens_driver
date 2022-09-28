@@ -1,28 +1,27 @@
-<package>
-  <name>xsens_driver</name>
-  <version>2.2.2</version>
-  <description>
-  ROS Driver for XSens MT/MTi/MTi-G devices.
-  </description>
-  <maintainer email="francis.colas@mavt.ethz.ch">Francis Colas</maintainer>
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ethzasl_xsens_driver_ros2</name>
+  <version>0.0.1</version>
+  <description>ROS 2 Driver for XSens MT/MTi/MTi-G devices.</description>
+  <maintainer email="dominic.baril@norlab.ulaval.ca">Dominic Baril</maintainer>
   <license>BSD</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>tf</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
+  <exec_depend>python-serial</exec_depend>
+  <exec_depend>mtdevice</exec_depend>
 
-  <build_depend>rospy</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_depend>tf</build_depend>
-  <build_depend>sensor_msgs</build_depend>
-  <build_depend>geometry_msgs</build_depend>
-  <build_depend>diagnostic_msgs</build_depend>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
-  <run_depend>rospy</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>tf</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>diagnostic_msgs</run_depend>
-  <run_depend>python-serial</run_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>
-
-

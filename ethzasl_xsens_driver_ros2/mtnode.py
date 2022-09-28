@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('xsens_driver')
-import rospy
+# import roslib; roslib.load_manifest('xsens_driver')
+# import rospy
+
 import select
 import sys
 

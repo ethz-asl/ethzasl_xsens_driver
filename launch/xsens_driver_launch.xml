@@ -1,0 +1,27 @@
+<launch>
+    <!-- parameters -->
+    <arg name="device" default="auto"/>
+    <arg name="baudrate" default="0"/>
+    <arg name="timeout" default="0.002"/>
+    <arg name="initial_wait" default="0.1"/>
+    <arg name="frame_id" default="/imu"/>
+    <arg name="frame_local" default="ENU"/>
+    <arg name="no_rotation_duration" default="0"/>
+    <arg name="angular_velocity_covariance_diagonal" default="[0.0004, 0.0004, 0.0004]"/>
+    <arg name="linear_acceleration_covariance_diagonal" default="[0.0004, 0.0004, 0.0004]"/>
+    <arg name="orientation_covariance_diagonal" default="[0.01745, 0.01745, 0.15708]"/>
+
+    <!-- node -->
+	<node pkg="ethzasl_xsens_driver_ros2" exec="mti_node" name="xsens_driver" output="screen" >
+		<param name="device" value="$(var device)"/>
+		<param name="baudrate" value="$(var baudrate)"/>
+		<param name="timeout" value="$(var timeout)"/>
+		<param name="initial_wait" value="$(var initial_wait)"/>
+		<param name="frame_id" value="$(var frame_id)"/>
+		<param name="frame_local" value="$(var frame_local)"/>
+		<param name="no_rotation_duration" value="$(var no_rotation_duration)"/>
+		<param name="angular_velocity_covariance_diagonal" value="$(var angular_velocity_covariance_diagonal)"/>
+		<param name="linear_acceleration_covariance_diagonal" value="$(var linear_acceleration_covariance_diagonal)"/>
+		<param name="orientation_covariance_diagonal" value="$(var orientation_covariance_diagonal)"/>
+	</node>
+</launch>

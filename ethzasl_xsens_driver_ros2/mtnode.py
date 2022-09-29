@@ -6,8 +6,8 @@ import sys
 
 import std_msgs.msg
 
-import mtdevice
-import mtdef
+from ethzasl_xsens_driver_ros2 import mtdevice
+from ethzasl_xsens_driver_ros2 import mtdef
 
 from std_msgs.msg import Header, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField, FluidPressure, Temperature, TimeReference

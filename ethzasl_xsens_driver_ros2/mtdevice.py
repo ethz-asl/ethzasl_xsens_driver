@@ -65,7 +65,7 @@ class MTDevice(object):
         else:
             lendat = struct.pack('!B', length)
         packet = b'\xFA\xFF' + struct.pack('!B', mid) + lendat + data
-        packet += struct.pack('!B', 0xFF & (-(sum(map(ord, packet[1:])))))
+        packet += struct.pack('!B', 0xFF & (-(sum(packet[1:]))))
         msg = packet
         start = time.time()
         while ((time.time()-start) < self.timeout) and self.device.read():

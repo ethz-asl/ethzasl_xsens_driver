@@ -4,8 +4,6 @@ import rclpy.node
 import select
 import sys
 
-import std_msgs.msg
-
 from ethzasl_xsens_driver_ros2 import mtdevice
 from ethzasl_xsens_driver_ros2 import mtdef
 
@@ -17,7 +15,6 @@ import time
 import datetime
 import calendar
 import serial
-import math
 
 # transform Euler angles or matrix into quaternions
 from math import radians, sqrt, atan2
@@ -27,10 +24,10 @@ from tf_transformations import quaternion_from_matrix, quaternion_from_euler, id
 class XSensDriver(rclpy.node.Node):
     def __init__(self):
         super().__init__("xsens_driver")
-        device = self.get_param('~device', 'auto')
-        baudrate = int(self.get_param('~baudrate', 0))
-        timeout = float(self.get_param('~timeout', 0.002))
-        initial_wait = float(self.get_param('~initial_wait', 0.1))
+        device = self.get_param('device', 'auto')
+        baudrate = self.get_param('baudrate', 0)
+        timeout = self.get_param('timeout', 0.002)
+        initial_wait = self.get_param('initial_wait', 0.1)
         if device == 'auto':
             devs = mtdevice.find_devices(timeout=timeout, initial_wait=initial_wait)
             if devs:
@@ -50,20 +47,19 @@ class XSensDriver(rclpy.node.Node):
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)
-        no_rotation_duration = float(self.get_param('~no_rotation_duration', 0))
+        no_rotation_duration = self.get_param('no_rotation_duration', 0)
         if no_rotation_duration:
             self.get_logger().info("Starting the no-rotation procedure to estimate the gyroscope biases for %d s. Please don't move the IMU during this time."
                                    % no_rotation_duration)
             self.mt.SetNoRotation(no_rotation_duration)
 
-        self.frame_id = self.get_param('~frame_id', '/base_imu')
+        self.frame_id = self.get_param('frame_id', 'base_imu')
 
-        self.frame_local = self.get_param('~frame_local', 'ENU')
+        self.frame_local = self.get_param('frame_local', 'ENU')
 
-        self.angular_velocity_covariance = self.matrix_from_diagonal(self.get_param_list('~angular_velocity_covariance_diagonal', [radians(0.025)] * 3))
-        self.linear_acceleration_covariance = self.matrix_from_diagonal(self.get_param_list('~linear_acceleration_covariance_diagonal', [0.0004] * 3))
-        self.orientation_covariance = self.matrix_from_diagonal(self.get_param_list("~orientation_covariance_diagonal", [radians(1.), radians(1.),
-                                                                                                                         radians(9.)]))
+        self.angular_velocity_covariance = self.matrix_from_diagonal(self.get_param('angular_velocity_covariance_diagonal', [radians(0.025)] * 3))
+        self.linear_acceleration_covariance = self.matrix_from_diagonal(self.get_param('linear_acceleration_covariance_diagonal', [0.0004] * 3))
+        self.orientation_covariance = self.matrix_from_diagonal(self.get_param("orientation_covariance_diagonal", [radians(1.), radians(1.), radians(9.)]))
 
         self.diag_msg = DiagnosticArray()
         self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=bytes([1]), message='No status information')
@@ -94,20 +90,11 @@ class XSensDriver(rclpy.node.Node):
 
     def get_param(self, name, default):
         self.declare_parameter(name, default)
-        v = self.get_parameter(name).get_parameter_value().string_value
-        if v == "":
-            v = default
-            self.get_logger().warn("Cannot find value for parameter: %s, assigning default: %s" % (name, str(v)))
-        else:
-            self.get_logger().info("Found parameter: %s, value: %s" % (name, str(v)))
-        return v
-
-    def get_param_list(self, name, default):
-        value = [float(x) for x in self.get_param(name, default)]
-        if len(default) != len(value):
-            self.get_logger().fatal("Parameter %s should be a list of size %d", name, len(default))
-            sys.exit(1)
-        return value
+        parameter = self.get_parameter(name).get_parameter_value()
+        parameter_fields = list(parameter.get_fields_and_field_types().keys())
+        parameter_value = getattr(parameter, parameter_fields[parameter.type])
+        self.get_logger().info("Parameter: %s, value: %s" % (name, str(parameter_value)))
+        return parameter_value
 
     def matrix_from_diagonal(self, diagonal):
         n = len(diagonal)

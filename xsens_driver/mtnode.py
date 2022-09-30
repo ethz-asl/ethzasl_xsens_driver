@@ -4,8 +4,8 @@ import rclpy.node
 import select
 import sys
 
-from ethzasl_xsens_driver_ros2 import mtdevice
-from ethzasl_xsens_driver_ros2 import mtdef
+from xsens_driver import mtdevice
+from xsens_driver import mtdef
 
 from std_msgs.msg import Header, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField, FluidPressure, Temperature, TimeReference
@@ -16,8 +16,8 @@ import datetime
 import calendar
 import serial
 
-# transform Euler angles or matrix into quaternions
 from math import radians, sqrt, atan2
+# transform Euler angles or matrix into quaternions
 from tf_transformations import quaternion_from_matrix, quaternion_from_euler, identity_matrix
 
 

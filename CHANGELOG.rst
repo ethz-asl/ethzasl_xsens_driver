@@ -2,6 +2,11 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.0.0 (2022-09-30)
+------------------
+* Migrated to ROS 2 (humble)
+* Contributors: Dominic Baril (Norlab), Simon-Pierre Deschênes (Norlab)
+
 2.2.2 (2018-08-02)
 ------------------
 * fix exception while closing node

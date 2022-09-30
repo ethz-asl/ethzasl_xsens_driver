@@ -9,7 +9,7 @@ import glob
 import re
 import pprint
 
-from ethzasl_xsens_driver_ros2.mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
+from xsens_driver.mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
     XDIGroup, getMIDName, DeviceState, DeprecatedMID, MTErrorMessage, \
     MTTimeoutException
 

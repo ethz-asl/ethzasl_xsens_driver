@@ -12,7 +12,7 @@
     <arg name="orientation_covariance_diagonal" default="[0.01745, 0.01745, 0.15708]"/>
 
     <!-- node -->
-	<node pkg="ethzasl_xsens_driver_ros2" exec="mti_node" name="xsens_driver" output="screen" >
+	<node pkg="xsens_driver" exec="mtnode.py" name="xsens_driver" output="screen" >
 		<param name="device" value="$(var device)"/>
 		<param name="baudrate" value="$(var baudrate)"/>
 		<param name="timeout" value="$(var timeout)"/>

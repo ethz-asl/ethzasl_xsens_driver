@@ -1,3 +1,11 @@
 ROS 2 driver for XSens MT/MTi/MTi-G devices.
 
 See: http://ros.org/wiki/ethzasl_xsens_driver
+
+** Some useful commands to enable serial communication
+
+```
+sudo adduser $USER dialout
+```
+
+where `$USER` is the username.

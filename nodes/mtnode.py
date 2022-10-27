@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 import roslib; roslib.load_manifest('xsens_driver')
 import rospy
 import select
@@ -473,7 +473,10 @@ class XSensDriver(object):
                 a, b, c, d, e, f, g, h, i = o['a'], o['b'], o['c'], o['d'],\
                     o['e'], o['f'], o['g'], o['h'], o['i']
                 m = identity_matrix()
-                m[:3, :3] = ((a, b, c), (d, e, f), (g, h, i))
+                m[:3, :3] = ((a, d, g), 
+                             (b, e, h),
+                             (c, f, i))
+
                 x, y, z, w = quaternion_from_matrix(m)
             except KeyError:
                 pass
@@ -720,7 +723,7 @@ class XSensDriver(object):
         self.reset_vars()
 
         # fill messages based on available data fields
-        for n, o in data.items():
+        for n, o in list(data.items()):
             try:
                 locals()[find_handler_name(n)](o)
             except KeyError:

@@ -166,7 +166,7 @@ class DeprecatedMID:
 def getName(cls, value):
     '''Return the name of the first found member of class cls with given
     value.'''
-    for k, v in cls.__dict__.iteritems():
+    for k, v in iter(cls.__dict__.items()):
         if v == value:
             return k
     return ''
@@ -232,9 +232,10 @@ class OutputMode:
     Position = 0x0010
     Velocity = 0x0020
     Status = 0x0800
+
     RAWGPS = 0x1000  # supposed to be incompatible with previous
     RAW = 0x4000  # incompatible with all except RAWGPS
-
+#    RAW = 0x0006
 
 class OutputSettings:
     """Values for the output settings."""

@@ -2,6 +2,12 @@
 Changelog for package xsens_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.2.3 (2022-10-27)
+------------------
+* add support of noetic
+* fix quaternion computation from rotation matrix data provided by IMU 
+* Contributors: Roland Lenain, Cyrille Pierre
+
 2.2.2 (2018-08-02)
 ------------------
 * fix exception while closing node

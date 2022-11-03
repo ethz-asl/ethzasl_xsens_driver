@@ -545,7 +545,7 @@ class XSensDriver(rclpy.node.Node):
                     self.last_delta_q_time = now
                 else:
                     # update rate (filtering so as to account for lag variance)
-                    delta_t = (now - self.last_delta_q_time).to_sec()
+                    delta_t = (now - self.last_delta_q_time).nanoseconds/1e+9
                     if self.delta_q_rate is None:
                         self.delta_q_rate = 1./delta_t
                     delta_t_filtered = .95/self.delta_q_rate + .05*delta_t

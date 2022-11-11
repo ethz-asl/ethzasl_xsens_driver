@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('xsens_driver')
-import rospy
+import rclpy
+import rclpy.node
 import select
 import sys
 
-import mtdevice
-import mtdef
+from xsens_driver import mtdevice
+from xsens_driver import mtdef
 
 from std_msgs.msg import Header, String, UInt16
-from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\
-    FluidPressure, Temperature, TimeReference
+from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField, FluidPressure, Temperature, TimeReference
 from geometry_msgs.msg import TwistStamped, PointStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import time
@@ -17,99 +16,55 @@ import datetime
 import calendar
 import serial
 
-# transform Euler angles or matrix into quaternions
 from math import radians, sqrt, atan2
-from tf.transformations import quaternion_from_matrix, quaternion_from_euler,\
-    identity_matrix
+# transform Euler angles or matrix into quaternions
+from tf_transformations import quaternion_from_matrix, quaternion_from_euler, identity_matrix
 
 
-def get_param(name, default):
-    try:
-        v = rospy.get_param(name)
-        rospy.loginfo("Found parameter: %s, value: %s" % (name, str(v)))
-    except KeyError:
-        v = default
-        rospy.logwarn("Cannot find value for parameter: %s, assigning "
-                      "default: %s" % (name, str(v)))
-    return v
-
-
-def get_param_list(name, default):
-    value = get_param(name, default)
-    if len(default) != len(value):
-        rospy.logfatal("Parameter %s should be a list of size %d", name, len(default))
-        sys.exit(1)
-    return value
-
-
-def matrix_from_diagonal(diagonal):
-    n = len(diagonal)
-    matrix = [0] * n * n
-    for i in range(0, n):
-        matrix[i*n + i] = diagonal[i]
-    return tuple(matrix)
-
-
-class XSensDriver(object):
-
+class XSensDriver(rclpy.node.Node):
     def __init__(self):
-        device = get_param('~device', 'auto')
-        baudrate = get_param('~baudrate', 0)
-        timeout = get_param('~timeout', 0.002)
-        initial_wait = get_param('~initial_wait', 0.1)
+        super().__init__("xsens_driver")
+        device = self.get_param('device', 'auto')
+        baudrate = self.get_param('baudrate', 0)
+        timeout = self.get_param('timeout', 0.002)
+        initial_wait = self.get_param('initial_wait', 0.1)
         if device == 'auto':
-            devs = mtdevice.find_devices(timeout=timeout,
-                                         initial_wait=initial_wait)
+            devs = mtdevice.find_devices(timeout=timeout, initial_wait=initial_wait)
             if devs:
                 device, baudrate = devs[0]
-                rospy.loginfo("Detected MT device on port %s @ %d bps"
-                              % (device, baudrate))
+                self.get_logger().info("Detected MT device on port %s @ %d bps" % (device, baudrate))
             else:
-                rospy.logerr("Fatal: could not find proper MT device.")
-                rospy.signal_shutdown("Could not find proper MT device.")
-                return
+                self.get_logger().error("Fatal: could not find proper MT device.")
+                sys.exit(1)
         if not baudrate:
-            baudrate = mtdevice.find_baudrate(device, timeout=timeout,
-                                              initial_wait=initial_wait)
+            baudrate = mtdevice.find_baudrate(device, timeout=timeout, initial_wait=initial_wait)
         if not baudrate:
-            rospy.logerr("Fatal: could not find proper baudrate.")
-            rospy.signal_shutdown("Could not find proper baudrate.")
-            return
+            self.get_logger().error("Fatal: could not find proper baudrate.")
+            sys.exit(1)
 
-        rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
-        self.mt = mtdevice.MTDevice(device, baudrate, timeout,
-                                    initial_wait=initial_wait)
+        self.get_logger().info("MT node interface: %s at %d bd." % (device, baudrate))
+        self.mt = mtdevice.MTDevice(device, baudrate, timeout, initial_wait=initial_wait)
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)
-        no_rotation_duration = get_param('~no_rotation_duration', 0)
+        no_rotation_duration = self.get_param('no_rotation_duration', 0)
         if no_rotation_duration:
-            rospy.loginfo("Starting the no-rotation procedure to estimate the "
-                          "gyroscope biases for %d s. Please don't move the "
-                          "IMU during this time." % no_rotation_duration)
+            self.get_logger().info("Starting the no-rotation procedure to estimate the gyroscope biases for %d s. Please don't move the IMU during this time."
+                                   % no_rotation_duration)
             self.mt.SetNoRotation(no_rotation_duration)
 
-        self.frame_id = get_param('~frame_id', '/base_imu')
+        self.frame_id = self.get_param('frame_id', 'base_imu')
 
-        self.frame_local = get_param('~frame_local', 'ENU')
+        self.frame_local = self.get_param('frame_local', 'ENU')
 
-        self.angular_velocity_covariance = matrix_from_diagonal(
-            get_param_list('~angular_velocity_covariance_diagonal', [radians(0.025)] * 3)
-        )
-        self.linear_acceleration_covariance = matrix_from_diagonal(
-            get_param_list('~linear_acceleration_covariance_diagonal', [0.0004] * 3)
-        )
-        self.orientation_covariance = matrix_from_diagonal(
-            get_param_list("~orientation_covariance_diagonal", [radians(1.), radians(1.), radians(9.)])
-        )
+        self.angular_velocity_covariance = self.matrix_from_diagonal(self.get_param('angular_velocity_covariance_diagonal', [radians(0.025)] * 3))
+        self.linear_acceleration_covariance = self.matrix_from_diagonal(self.get_param('linear_acceleration_covariance_diagonal', [0.0004] * 3))
+        self.orientation_covariance = self.matrix_from_diagonal(self.get_param("orientation_covariance_diagonal", [radians(1.), radians(1.), radians(9.)]))
 
         self.diag_msg = DiagnosticArray()
-        self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=1,
-                                           message='No status information')
-        self.xkf_stat = DiagnosticStatus(name='mtnode: XKF Valid', level=1,
-                                         message='No status information')
-        self.gps_stat = DiagnosticStatus(name='mtnode: GPS Fix', level=1,
-                                         message='No status information')
+        self.stest_stat = DiagnosticStatus(name='mtnode: Self Test', level=bytes([1]), message='No status information')
+        self.xkf_stat = DiagnosticStatus(name='mtnode: XKF Valid', level=bytes([1]), message='No status information')
+        self.gps_stat = DiagnosticStatus(name='mtnode: GPS Fix', level=bytes([1]), message='No status information')
         self.diag_msg.status = [self.stest_stat, self.xkf_stat, self.gps_stat]
 
         # publishers created at first use to reduce topic clutter
@@ -129,9 +84,24 @@ class XSensDriver(object):
         self.old_bGPS = 256  # publish GPS only if new
 
         # publish a string version of all data; to be parsed by clients
-        self.str_pub = rospy.Publisher('imu_data_str', String, queue_size=10)
+        self.str_pub = self.create_publisher(String, 'imu_data_str', 10)
         self.last_delta_q_time = None
         self.delta_q_rate = None
+
+    def get_param(self, name, default):
+        self.declare_parameter(name, default)
+        parameter = self.get_parameter(name).get_parameter_value()
+        parameter_fields = list(parameter.get_fields_and_field_types().keys())
+        parameter_value = getattr(parameter, parameter_fields[parameter.type])
+        self.get_logger().info("Parameter: %s, value: %s" % (name, str(parameter_value)))
+        return parameter_value
+
+    def matrix_from_diagonal(self, diagonal):
+        n = len(diagonal)
+        matrix = [0.0] * n * n
+        for i in range(0, n):
+            matrix[i * n + i] = diagonal[i]
+        return tuple(matrix)
 
     def reset_vars(self):
         self.imu_msg = Imu()
@@ -146,7 +116,7 @@ class XSensDriver(object):
         self.vel_msg = TwistStamped()
         self.pub_vel = False
         self.mag_msg = MagneticField()
-        self.mag_msg.magnetic_field_covariance = (0, )*9
+        self.mag_msg.magnetic_field_covariance = (0.0, )*9
         self.pub_mag = False
         self.temp_msg = Temperature()
         self.temp_msg.variance = 0.
@@ -164,7 +134,7 @@ class XSensDriver(object):
 
     def spin(self):
         try:
-            while not rospy.is_shutdown():
+            while rclpy.ok():
                 self.spin_once()
                 self.reset_vars()
         # Ctrl-C signal interferes with select with the ROS signal handler
@@ -173,7 +143,7 @@ class XSensDriver(object):
             pass
 
     def spin_once(self):
-        '''Read data from device and publishes ROS messages.'''
+        """Read data from device and publishes ROS messages."""
         def convert_coords(x, y, z, source, dest=self.frame_local):
             """Convert the coordinates between ENU, NED, and NWU."""
             if source == dest:
@@ -234,12 +204,11 @@ class XSensDriver(object):
             # Doesn't follow the standard publishing pattern since several time
             # refs could be published simultaneously
             if self.time_ref_pub is None:
-                self.time_ref_pub = rospy.Publisher(
-                    'time_reference', TimeReference, queue_size=10)
+                self.time_ref_pub = self.create_publisher(TimeReference, 'time_reference', 10)
             time_ref_msg = TimeReference()
             time_ref_msg.header = self.h
-            time_ref_msg.time_ref.secs = secs
-            time_ref_msg.time_ref.nsecs = nsecs
+            time_ref_msg.time_ref.sec = secs
+            time_ref_msg.time_ref.nanosec = int(nsecs)
             time_ref_msg.source = source
             self.time_ref_pub.publish(time_ref_msg)
 
@@ -270,13 +239,13 @@ class XSensDriver(object):
 
         # MTData
         def fill_from_RAW(raw_data):
-            '''Fill messages with information from 'raw' MTData block.'''
+            """Fill messages with information from 'raw' MTData block."""
             # don't publish raw imu data anymore
             # TODO find what to do with that
-            rospy.loginfo("Got MTi data packet: 'RAW', ignored!")
+            self.get_logger().info("Got MTi data packet: 'RAW', ignored!")
 
         def fill_from_RAWGPS(rawgps_data):
-            '''Fill messages with information from 'rawgps' MTData block.'''
+            """Fill messages with information from 'rawgps' MTData block."""
             if rawgps_data['bGPS'] < self.old_bGPS:
                 self.pub_raw_gps = True
                 # LLA
@@ -287,14 +256,14 @@ class XSensDriver(object):
             self.old_bGPS = rawgps_data['bGPS']
 
         def fill_from_Temp(temp):
-            '''Fill messages with information from 'temperature' MTData block.
-            '''
+            """Fill messages with information from 'temperature' MTData block.
+            """
             self.pub_temp = True
             self.temp_msg.temperature = temp
 
         def fill_from_Calib(imu_data):
-            '''Fill messages with information from 'calibrated' MTData block.
-            '''
+            """Fill messages with information from 'calibrated' MTData block.
+            """
             try:
                 self.pub_imu = True
                 x, y, z = imu_data['gyrX'], imu_data['gyrY'], imu_data['gyrZ']
@@ -327,8 +296,8 @@ class XSensDriver(object):
                 pass
 
         def fill_from_Orient(orient_data):
-            '''Fill messages with information from 'orientation' MTData block.
-            '''
+            """Fill messages with information from 'orientation' MTData block.
+            """
             self.pub_imu = True
             if 'quaternion' in orient_data:
                 w, x, y, z = orient_data['quaternion']
@@ -349,7 +318,7 @@ class XSensDriver(object):
             self.imu_msg.orientation_covariance = self.orientation_covariance
 
         def fill_from_Auxiliary(aux_data):
-            '''Fill messages with information from 'Auxiliary' MTData block.'''
+            """Fill messages with information from 'Auxiliary' MTData block."""
             try:
                 self.anin1_msg.data = o['Ain_1']
                 self.pub_anin1 = True
@@ -362,14 +331,14 @@ class XSensDriver(object):
                 pass
 
         def fill_from_Pos(position_data):
-            '''Fill messages with information from 'position' MTData block.'''
+            """Fill messages with information from 'position' MTData block."""
             self.pub_pos_gps = True
             self.pos_gps_msg.latitude = position_data['Lat']
             self.pos_gps_msg.longitude = position_data['Lon']
             self.pos_gps_msg.altitude = position_data['Alt']
 
         def fill_from_Vel(velocity_data):
-            '''Fill messages with information from 'velocity' MTData block.'''
+            """Fill messages with information from 'velocity' MTData block."""
             self.pub_vel = True
             x, y, z = convert_coords(
                 velocity_data['Vel_X'], velocity_data['Vel_Y'],
@@ -379,7 +348,7 @@ class XSensDriver(object):
             self.vel_msg.twist.linear.z = z
 
         def fill_from_Stat(status):
-            '''Fill messages with information from 'status' MTData block.'''
+            """Fill messages with information from 'status' MTData block."""
             self.pub_diag = True
             if status & 0b0001:
                 self.stest_stat.level = DiagnosticStatus.OK
@@ -411,19 +380,19 @@ class XSensDriver(object):
                 self.pos_gps_msg.status.service = 0
 
         def fill_from_Sample(ts):
-            '''Catch 'Sample' MTData blocks.'''
+            """Catch 'Sample' MTData blocks."""
             self.h.seq = ts
 
         # MTData2
         def fill_from_Temperature(o):
-            '''Fill messages with information from 'Temperature' MTData2 block.
-            '''
+            """Fill messages with information from 'Temperature' MTData2 block.
+            """
             self.pub_temp = True
             self.temp_msg.temperature = o['Temp']
 
         def fill_from_Timestamp(o):
-            '''Fill messages with information from 'Timestamp' MTData2 block.
-            '''
+            """Fill messages with information from 'Timestamp' MTData2 block.
+            """
             try:
                 # put timestamp from gps UTC time if available
                 y, m, d, hr, mi, s, ns, f = o['Year'], o['Month'], o['Day'],\
@@ -456,8 +425,8 @@ class XSensDriver(object):
             pass
 
         def fill_from_Orientation_Data(o):
-            '''Fill messages with information from 'Orientation Data' MTData2
-            block.'''
+            """Fill messages with information from 'Orientation Data' MTData2
+            block."""
             self.pub_imu = True
             try:
                 x, y, z, w = o['Q1'], o['Q2'], o['Q3'], o['Q0']
@@ -485,13 +454,13 @@ class XSensDriver(object):
             self.imu_msg.orientation_covariance = self.orientation_covariance
 
         def fill_from_Pressure(o):
-            '''Fill messages with information from 'Pressure' MTData2 block.'''
+            """Fill messages with information from 'Pressure' MTData2 block."""
             self.press_msg.fluid_pressure = o['Pressure']
             self.pub_press = True
 
         def fill_from_Acceleration(o):
-            '''Fill messages with information from 'Acceleration' MTData2
-            block.'''
+            """Fill messages with information from 'Acceleration' MTData2
+            block."""
             self.pub_imu = True
 
             # FIXME not sure we should treat all in that same way
@@ -513,7 +482,7 @@ class XSensDriver(object):
             self.imu_msg.linear_acceleration_covariance = self.linear_acceleration_covariance
 
         def fill_from_Position(o):
-            '''Fill messages with information from 'Position' MTData2 block.'''
+            """Fill messages with information from 'Position' MTData2 block."""
             try:
                 self.pos_gps_msg.latitude = o['lat']
                 self.pos_gps_msg.longitude = o['lon']
@@ -534,7 +503,7 @@ class XSensDriver(object):
                 pass
 
         def fill_from_GNSS(o):
-            '''Fill messages with information from 'GNSS' MTData2 block.'''
+            """Fill messages with information from 'GNSS' MTData2 block."""
             try:  # PVT
                 # time block
                 itow, y, m, d, ns, f = o['itow'], o['year'], o['month'],\
@@ -566,17 +535,17 @@ class XSensDriver(object):
             # TODO publish Sat Info
 
         def fill_from_Angular_Velocity(o):
-            '''Fill messages with information from 'Angular Velocity' MTData2
-            block.'''
+            """Fill messages with information from 'Angular Velocity' MTData2
+            block."""
             try:
                 dqw, dqx, dqy, dqz = (o['Delta q0'], o['Delta q1'],
                     o['Delta q2'], o['Delta q3'])
-                now = rospy.Time.now()
+                now = self.get_clock().now()
                 if self.last_delta_q_time is None:
                     self.last_delta_q_time = now
                 else:
                     # update rate (filtering so as to account for lag variance)
-                    delta_t = (now - self.last_delta_q_time).to_sec()
+                    delta_t = (now - self.last_delta_q_time).nanoseconds/1e+9
                     if self.delta_q_rate is None:
                         self.delta_q_rate = 1./delta_t
                     delta_t_filtered = .95/self.delta_q_rate + .05*delta_t
@@ -622,7 +591,7 @@ class XSensDriver(object):
                 pass
 
         def fill_from_GPS(o):
-            '''Fill messages with information from 'GPS' MTData2 block.'''
+            """Fill messages with information from 'GPS' MTData2 block."""
             # TODO DOP
             try:    # SOL
                 x, y, z = o['ecefX'], o['ecefY'], o['ecefZ']
@@ -654,13 +623,13 @@ class XSensDriver(object):
             # TODO publish SV Info
 
         def fill_from_SCR(o):
-            '''Fill messages with information from 'SCR' MTData2 block.'''
+            """Fill messages with information from 'SCR' MTData2 block."""
             # TODO that's raw information
             pass
 
         def fill_from_Analog_In(o):
-            '''Fill messages with information from 'Analog In' MTData2 block.
-            '''
+            """Fill messages with information from 'Analog In' MTData2 block.
+            """
             try:
                 self.anin1_msg.data = o['analogIn1']
                 self.pub_anin1 = True
@@ -673,7 +642,7 @@ class XSensDriver(object):
                 pass
 
         def fill_from_Magnetic(o):
-            '''Fill messages with information from 'Magnetic' MTData2 block.'''
+            """Fill messages with information from 'Magnetic' MTData2 block."""
             x, y, z = o['magX'], o['magY'], o['magZ']
             self.mag_msg.magnetic_field.x = x
             self.mag_msg.magnetic_field.y = y
@@ -681,7 +650,7 @@ class XSensDriver(object):
             self.pub_mag = True
 
         def fill_from_Velocity(o):
-            '''Fill messages with information from 'Velocity' MTData2 block.'''
+            """Fill messages with information from 'Velocity' MTData2 block."""
             x, y, z = convert_coords(o['velX'], o['velY'], o['velZ'],
                                      o['frame'])
             self.vel_msg.twist.linear.x = x
@@ -690,7 +659,7 @@ class XSensDriver(object):
             self.pub_vel = True
 
         def fill_from_Status(o):
-            '''Fill messages with information from 'Status' MTData2 block.'''
+            """Fill messages with information from 'Status' MTData2 block."""
             try:
                 status = o['StatusByte']
                 fill_from_Stat(status)
@@ -713,7 +682,7 @@ class XSensDriver(object):
             return
         # common header
         self.h = Header()
-        self.h.stamp = rospy.Time.now()
+        self.h.stamp = self.get_clock().now().to_msg()
         self.h.frame_id = self.frame_id
 
         # set default values
@@ -724,79 +693,74 @@ class XSensDriver(object):
             try:
                 locals()[find_handler_name(n)](o)
             except KeyError:
-                rospy.logwarn("Unknown MTi data packet: '%s', ignoring." % n)
+                self.get_logger().warn("Unknown MTi data packet: '%s', ignoring." % n)
 
         # publish available information
         if self.pub_imu:
             self.imu_msg.header = self.h
             if self.imu_pub is None:
-                self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
+                self.imu_pub = self.create_publisher(Imu, 'imu/data', 10)
             self.imu_pub.publish(self.imu_msg)
         if self.pub_raw_gps:
             self.raw_gps_msg.header = self.h
             if self.raw_gps_pub is None:
-                self.raw_gps_pub = rospy.Publisher('raw_fix', NavSatFix, queue_size=10)
+                self.raw_gps_pub = self.create_publisher(NavSatFix, 'raw_fix', 10)
             self.raw_gps_pub.publish(self.raw_gps_msg)
         if self.pub_pos_gps:
             self.pos_gps_msg.header = self.h
             if self.pos_gps_pub is None:
-                self.pos_gps_pub = rospy.Publisher('fix', NavSatFix, queue_size=10)
+                self.pos_gps_pub = self.create_publisher(NavSatFix, 'fix', 10)
             self.pos_gps_pub.publish(self.pos_gps_msg)
         if self.pub_vel:
             self.vel_msg.header = self.h
             if self.vel_pub is None:
-                self.vel_pub = rospy.Publisher('velocity', TwistStamped,
-                                               queue_size=10)
+                self.vel_pub = self.create_publisher(TwistStamped, 'velocity', 10)
             self.vel_pub.publish(self.vel_msg)
         if self.pub_mag:
             self.mag_msg.header = self.h
             if self.mag_pub is None:
-                self.mag_pub = rospy.Publisher('imu/mag', MagneticField,
-                                               queue_size=10)
+                self.mag_pub = self.create_publisher(MagneticField, 'imu/mag', 10)
             self.mag_pub.publish(self.mag_msg)
         if self.pub_temp:
             self.temp_msg.header = self.h
             if self.temp_pub is None:
-                self.temp_pub = rospy.Publisher('temperature', Temperature,
-                                                queue_size=10)
+                self.temp_pub = self.create_publisher(Temperature, 'temperature', 10)
             self.temp_pub.publish(self.temp_msg)
         if self.pub_press:
             self.press_msg.header = self.h
             if self.press_pub is None:
-                self.press_pub = rospy.Publisher('pressure', FluidPressure,
-                                                 queue_size=10)
+                self.press_pub = self.create_publisher(FluidPressure, 'pressure', 10)
             self.press_pub.publish(self.press_msg)
         if self.pub_anin1:
             if self.analog_in1_pub is None:
-                self.analog_in1_pub = rospy.Publisher('analog_in1',
-                                                      UInt16, queue_size=10)
+                self.analog_in1_pub = self.create_publisher(UInt16, 'analog_in1', 10)
             self.analog_in1_pub.publish(self.anin1_msg)
         if self.pub_anin2:
             if self.analog_in2_pub is None:
-                self.analog_in2_pub = rospy.Publisher('analog_in2', UInt16,
-                                                      queue_size=10)
+                self.analog_in2_pub = self.create_publisher(UInt16, 'analog_in2', 10)
             self.analog_in2_pub.publish(self.anin2_msg)
         if self.pub_ecef:
             self.ecef_msg.header = self.h
             if self.ecef_pub is None:
-                self.ecef_pub = rospy.Publisher('ecef', PointStamped,
-                                                queue_size=10)
+                self.ecef_pub = self.create_publisher(PointStamped, 'ecef', 10)
             self.ecef_pub.publish(self.ecef_msg)
         if self.pub_diag:
             self.diag_msg.header = self.h
             if self.diag_pub is None:
-                self.diag_pub = rospy.Publisher('/diagnostics',
-                                                DiagnosticArray, queue_size=10)
+                self.diag_pub = self.create_publisher(DiagnosticArray, '/diagnostics', 10)
             self.diag_pub.publish(self.diag_msg)
         # publish string representation
-        self.str_pub.publish(str(data))
+        msg = String()
+        msg.data = str(data)
+        self.str_pub.publish(msg)
 
 
-def main():
-    '''Create a ROS node and instantiate the class.'''
-    rospy.init_node('xsens_driver')
+def main(args=None):
+    """Create a ROS node and instantiate the class."""
+    rclpy.init(args=args)
     driver = XSensDriver()
     driver.spin()
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':

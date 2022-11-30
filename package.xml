@@ -22,7 +22,7 @@
   <run_depend>sensor_msgs</run_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>diagnostic_msgs</run_depend>
-  <run_depend>python-serial</run_depend>
+  <run_depend>python3-serial</run_depend>
 </package>
 
 

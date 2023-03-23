@@ -1,3 +1,5 @@
+Note: this driver is not maintained anymore. For ROS2 support, see https://github.com/norlab-ulaval/norlab_xsens_driver
+
 ROS Driver for XSens MT/MTi/MTi-G devices.
 
 See: http://ros.org/wiki/ethzasl_xsens_driver

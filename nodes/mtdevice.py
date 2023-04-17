@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+from __future__ import print_function
+
 import serial
+from serial import SerialException
 import struct
 import sys
 import getopt
@@ -12,6 +15,15 @@ import pprint
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, \
     XDIGroup, getMIDName, DeviceState, DeprecatedMID, MTErrorMessage, \
     MTTimeoutException
+
+
+def _byte(b):
+    """Convert the given character or byte to a byte."""
+    if sys.version_info[0] == 2:
+        return ord(b)
+    if isinstance(b, bytearray):
+        return b[0]
+    return b
 
 
 ################################################################
@@ -65,7 +77,7 @@ class MTDevice(object):
         else:
             lendat = struct.pack('!B', length)
         packet = b'\xFA\xFF' + struct.pack('!B', mid) + lendat + data
-        packet += struct.pack('!B', 0xFF & (-(sum(map(ord, packet[1:])))))
+        packet += struct.pack('!B', 0xFF & (-(sum(map(_byte, packet[1:])))))
         msg = packet
         start = time.time()
         while ((time.time()-start) < self.timeout) and self.device.read():
@@ -75,9 +87,9 @@ class MTDevice(object):
         except serial.serialutil.SerialTimeoutException:
             raise MTTimeoutException("writing message")
         if self.verbose:
-            print "MT: Write message id 0x%02X (%s) with %d data bytes: "\
+            print("MT: Write message id 0x%02X (%s) with %d data bytes: "
                   "[%s]" % (mid, getMIDName(mid), length,
-                            ' '.join("%02X" % ord(v) for v in data))
+                            ' '.join("%02X" % _byte(v) for v in data)))
 
     def waitfor(self, size=1):
         """Get a given amount of data."""
@@ -87,8 +99,8 @@ class MTDevice(object):
             if len(buf) == size:
                 return buf
             if self.verbose:
-                print "waiting for %d bytes, got %d so far: [%s]" % \
-                    (size, len(buf), ' '.join('%02X' % v for v in buf))
+                print("waiting for %d bytes, got %d so far: [%s]" % 
+                    (size, len(buf), ' '.join('%02X' % v for v in buf)))
         raise MTTimeoutException("waiting for message")
 
     def read_data_msg(self, buf=bytearray()):
@@ -133,10 +145,10 @@ class MTDevice(object):
         start = time.time()
         while (time.time()-start) < self.timeout:
             # first part of preamble
-            if ord(self.waitfor()) != 0xFA:
+            if _byte(self.waitfor()) != 0xFA:
                 continue
             # second part of preamble
-            if ord(self.waitfor()) != 0xFF:  # we assume no timeout anymore
+            if _byte(self.waitfor()) != 0xFF:  # we assume no timeout anymore
                 continue
             # read message id and length of message
             mid, length = struct.unpack('!BB', self.waitfor(2))
@@ -153,9 +165,9 @@ class MTDevice(object):
                                      "waiting for next message.\n")
                 continue
             if self.verbose:
-                print "MT: Got message id 0x%02X (%s) with %d data bytes: "\
+                print("MT: Got message id 0x%02X (%s) with %d data bytes: "
                       "[%s]" % (mid, getMIDName(mid), length,
-                                ' '.join("%02X" % v for v in data))
+                                ' '.join("%02X" % v for v in data)))
             if mid == MID.Error:
                 raise MTErrorMessage(data[0])
             return (mid, buf[:-1])
@@ -171,8 +183,8 @@ class MTDevice(object):
                 if mid_ack == (mid+1):
                     break
                 elif self.verbose:
-                    print "ack (0x%02X) expected, got 0x%02X instead" % \
-                        (mid+1, mid_ack)
+                    print("ack (0x%02X) expected, got 0x%02X instead" %
+                        (mid+1, mid_ack))
             else:  # inner look not broken
                 continue  # retry (send+wait)
             break  # still no luck
@@ -557,7 +569,7 @@ class MTDevice(object):
         data = self.write_ack(MID.ReqAvailableScenarios)
         scenarios = []
         try:
-            for i in range(len(data)/22):
+            for i in range(len(data)//22):
                 scenario_type, version, label =\
                     struct.unpack('!BB20s', data[22*i:22*(i+1)])
                 scenarios.append((scenario_type, version, label.strip()))
@@ -674,7 +686,7 @@ class MTDevice(object):
                 raise
         except MTException as e:
             if self.verbose:
-                print "no ack received while switching from MTData2 to MTData."
+                print("no ack received while switching from MTData2 to MTData.")
             pass  # no ack???
         self.SetOutputMode(mode)
         self.SetOutputSettings(settings)
@@ -970,7 +982,7 @@ class MTDevice(object):
 
         # data object
         output = {}
-        while data:
+        while len(data) > 0:
             try:
                 data_id, size = struct.unpack('!HB', data[:3])
                 if (data_id & 0x0003) == 0x3:
@@ -1151,9 +1163,9 @@ class MTDevice(object):
                 data = data[12:]
                 output['Timestamp'] = o
             # TODO at that point data should be empty
-        except struct.error, e:
+        except struct.error as e:
             raise MTException("could not parse MTData message.")
-        if data != '':
+        if len(data) > 0:
             raise MTException("could not parse MTData message (too long).")
         return output
 
@@ -1177,7 +1189,7 @@ def find_devices(timeout=0.002, verbose=False, initial_wait=0.1):
     mtdev_list = []
     for port in glob.glob("/dev/tty*S*"):
         if verbose:
-            print "Trying '%s'" % port
+            print("Trying '%s'" % port)
         try:
             br = find_baudrate(port, timeout, verbose, initial_wait)
             if br:
@@ -1194,31 +1206,31 @@ def find_baudrate(port, timeout=0.002, verbose=False, initial_wait=0.1):
     baudrates = (115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
     for br in baudrates:
         if verbose:
-            print "Trying %d bd:" % br,
+            print("Trying %d bd:" % br, end=' ')
             sys.stdout.flush()
         try:
             mt = MTDevice(port, br, timeout=timeout, verbose=verbose,
                           initial_wait=initial_wait)
         except serial.SerialException:
             if verbose:
-                print "fail: unable to open device."
+                print("fail: unable to open device.")
             raise MTException("unable to open %s" % port)
         try:
             mt.GoToConfig()
             mt.GoToMeasurement()
             if verbose:
-                print "ok."
+                print("ok.")
             return br
         except MTException:
             if verbose:
-                print "fail."
+                print("fail.")
 
 
 ################################################################
 # Documentation for stand alone usage
 ################################################################
 def usage():
-        print """MT device driver.
+    print("""MT device driver.
 Usage:
     ./mtdevice.py [commands] [opts]
 
@@ -1522,7 +1534,7 @@ Deprecated options:
             115200/(PERIOD * (SKIPFACTOR + 1))
         If the value is 0xffff, no data is send unless a ReqData request
         is made.
-"""
+""")
 
 
 ################################################################
@@ -1539,8 +1551,8 @@ def main():
              'option-flags=', 'icc-command=', 'timeout=', 'initial-wait=']
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], shopts, lopts)
-    except getopt.GetoptError, e:
-        print e
+    except getopt.GetoptError as e:
+        print(e)
         usage()
         return 1
     # default values
@@ -1569,7 +1581,7 @@ def main():
             try:
                 new_baudrate = int(a)
             except ValueError:
-                print "change-baudrate argument must be integer."
+                print("change-baudrate argument must be integer.")
                 return 1
             actions.append('change-baudrate')
         elif o in ('-c', '--configure'):
@@ -1587,7 +1599,7 @@ def main():
             try:
                 new_xkf = int(a)
             except ValueError:
-                print "xkf-scenario argument must be integer."
+                print("xkf-scenario argument must be integer.")
                 return 1
             actions.append('xkf-scenario')
         elif o in ('-y', '--synchronization'):
@@ -1607,7 +1619,7 @@ def main():
             try:
                 baudrate = int(a)
             except ValueError:
-                print "baudrate argument must be integer."
+                print("baudrate argument must be integer.")
                 return 1
         elif o in ('-m', '--output-mode'):
             mode = get_mode(a)
@@ -1621,13 +1633,13 @@ def main():
             try:
                 period = int(a)
             except ValueError:
-                print "period argument must be integer."
+                print("period argument must be integer.")
                 return 1
         elif o in ('-f', '--deprecated-skip-factor'):
             try:
                 skipfactor = int(a)
             except ValueError:
-                print "skip-factor argument must be integer."
+                print("skip-factor argument must be integer.")
                 return 1
         elif o in ('-v', '--verbose'):
             verbose = True
@@ -1650,13 +1662,13 @@ def main():
             try:
                 timeout = float(a)
             except ValueError:
-                print "timeout argument must be a floating number."
+                print("timeout argument must be a floating number.")
                 return 1
         elif o in ('-w', '--initial-wait'):
             try:
                 initial_wait = float(a)
             except ValueError:
-                print "initial-wait argument must be a floating number."
+                print("initial-wait argument must be a floating number.")
                 return 1
 
     # if nothing else: echo
@@ -1667,52 +1679,52 @@ def main():
             devs = find_devices(timeout=timeout, verbose=verbose,
                                 initial_wait=initial_wait)
             if devs:
-                print "Detected devices:", "".join('\n\t%s @ %d' % (d, p)
-                                                   for d, p in devs)
-                print "Using %s @ %d" % devs[0]
+                print("Detected devices:", "".join('\n\t%s @ %d' % (d, p)
+                                                   for d, p in devs))
+                print("Using %s @ %d" % devs[0])
                 device, baudrate = devs[0]
             else:
-                print "No suitable device found."
+                print("No suitable device found.")
                 return 1
         # find baudrate
         if not baudrate:
             baudrate = find_baudrate(device, timeout=timeout, verbose=verbose,
                                      initial_wait=initial_wait)
         if not baudrate:
-            print "No suitable baudrate found."
+            print("No suitable baudrate found.")
             return 1
         # open device
         try:
             mt = MTDevice(device, baudrate, timeout=timeout, verbose=verbose,
                           initial_wait=initial_wait)
-        except serial.SerialException:
+        except SerialException:
             raise MTException("unable to open %s" % device)
         # execute actions
         if 'inspect' in actions:
             inspect(mt, device, baudrate)
         if 'change-baudrate' in actions:
-            print "Changing baudrate from %d to %d:" % (baudrate,
-                                                        new_baudrate),
+            print("Changing baudrate from %d to %d:" % (baudrate,
+                                                        new_baudrate), end=' ')
             sys.stdout.flush()
             mt.ChangeBaudrate(new_baudrate)
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'reset' in actions:
-            print "Restoring factory defaults",
+            print("Restoring factory defaults", end=' ')
             sys.stdout.flush()
             mt.RestoreFactoryDefaults()
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'configure' in actions:
-            print "Changing output configuration",
+            print("Changing output configuration", end=' ')
             sys.stdout.flush()
             mt.SetOutputConfiguration(output_config)
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'synchronization' in actions:
-            print "Changing synchronization settings",
+            print("Changing synchronization settings", end=' ')
             sys.stdout.flush()
             mt.SetSyncSettings(sync_settings)
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'setUTCtime' in actions:
-            print "Setting UTC time in the device",
+            print("Setting UTC time in the device", end=' ')
             sys.stdout.flush()
             mt.SetUTCTime(UTCtime_settings[6],
                           UTCtime_settings[0],
@@ -1722,68 +1734,68 @@ def main():
                           UTCtime_settings[4],
                           UTCtime_settings[5],
                           UTCtime_settings[7])
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'gnss-platform' in actions:
-            print "Setting GNSS platform",
+            print("Setting GNSS platform", end=' ')
             sys.stdout.flush()
             mt.SetGnssPlatform(platform)
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'option-flags' in actions:
-            print "Setting option flags",
+            print("Setting option flags", end=' ')
             sys.stdout.flush()
             mt.SetOptionFlags(*flag_tuple)
-            print " Ok"  # should we test that it was actually ok?
+            print(" Ok")  # should we test that it was actually ok?
         if 'icc-command' in actions:
             icc_command_names = {
                     0: 'start representative motion',
                     1: 'stop representative motion',
                     2: 'store ICC results',
                     3: 'representative motion state'}
-            print "Sending ICC command 0x%02X (%s):" % (
-                    icc_command, icc_command_names[icc_command]),
+            print("Sending ICC command 0x%02X (%s):" % (
+                    icc_command, icc_command_names[icc_command]), end=' ')
             sys.stdout.flush()
             res = mt.IccCommand(icc_command)
             if icc_command == 0x00:
-                print " Ok"  # should we test that it was actually ok?
+                print(" Ok")  # should we test that it was actually ok?
             elif icc_command == 0x01:
-                print res
+                print(res)
             elif icc_command == 0x02:
-                print " Ok"  # should we test that it was actually ok?
+                print(" Ok")  # should we test that it was actually ok?
             elif icc_command == 0x03:
                 res_string = {0: 'representative motion inactive',
                               1: 'representation motion active'}
-                print "0x02X (%s)" % (res, res_string.get(res, 'unknown'))
+                print("0x02X (%s)" % (res, res_string.get(res, 'unknown')))
         if 'legacy-configure' in actions:
             if mode is None:
-                print "output-mode is require to configure the device in "\
-                    "legacy mode."
+                print("output-mode is require to configure the device in "
+                    "legacy mode.")
                 return 1
             if settings is None:
-                print "output-settings is required to configure the device "\
-                      "in legacy mode."
+                print("output-settings is required to configure the device "
+                      "in legacy mode.")
                 return 1
-            print "Configuring in legacy mode",
+            print("Configuring in legacy mode", end=' ')
             sys.stdout.flush()
             mt.configure_legacy(mode, settings, period, skipfactor)
-            print " Ok"        # should we test it was actually ok?
+            print(" Ok")        # should we test it was actually ok?
         if 'xkf-scenario' in actions:
-            print "Changing XKF scenario",
+            print("Changing XKF scenario", end=' ')
             sys.stdout.flush()
             mt.SetCurrentScenario(new_xkf)
-            print "Ok"
+            print("Ok")
         if 'echo' in actions:
             # if (mode is None) or (settings is None):
             #     mode, settings, length = mt.auto_config()
             #     print mode, settings, length
             try:
                 while True:
-                    print mt.read_measurement(mode, settings)
+                    print(mt.read_measurement(mode, settings))
             except KeyboardInterrupt:
                 pass
     except MTErrorMessage as e:
-        print "MTErrorMessage:", e
+        print("MTErrorMessage:", e)
     except MTException as e:
-        print "MTException:", e
+        print("MTException:", e)
 
 
 def inspect(mt, device, baudrate):
@@ -1810,20 +1822,20 @@ def inspect(mt, device, baudrate):
                                   for s in settings)
 
     def try_message(m, f, formater=None, *args, **kwargs):
-        print '  %s ' % m,
+        print('  %s ' % m, end=' ')
         try:
             if formater is not None:
-                print formater(f(*args, **kwargs))
+                print(formater(f(*args, **kwargs)))
             else:
                 pprint.pprint(f(*args, **kwargs), indent=4)
         except MTTimeoutException as e:
-            print 'timeout: might be unsupported by your device.'
+            print('timeout: might be unsupported by your device.')
         except MTErrorMessage as e:
             if e.code == 0x04:
-                print 'message unsupported by your device.'
+                print('message unsupported by your device.')
             else:
                 raise e
-    print "Device: %s at %d Bd:" % (device, baudrate)
+    print("Device: %s at %d Bd:" % (device, baudrate))
     try_message("device ID:", mt.GetDeviceID, hex_fmt(4))
     try_message("product code:", mt.GetProductCode)
     try_message("hardware version:", mt.GetHardwareVersion)
@@ -1910,7 +1922,7 @@ def get_output_config(config_arg):
             output_configuration.append((code, frequency))
         return output_configuration
     except (IndexError, KeyError):
-        print 'could not parse output specification "%s"' % item
+        print('could not parse output specification "%s"' % item)
         return
 
 
@@ -1954,7 +1966,7 @@ def get_mode(arg):
         elif c == 'r':
             mode |= OutputMode.RAW
         else:
-            print "Unknown output-mode specifier: '%s'" % c
+            print("Unknown output-mode specifier: '%s'" % c)
             return
     return mode
 
@@ -2008,7 +2020,7 @@ def get_settings(arg):
         elif c == 'N':
             NED = OutputSettings.Coordinates_NED
         else:
-            print "Unknown output-settings specifier: '%s'" % c
+            print("Unknown output-settings specifier: '%s'" % c)
             return
     settings = timestamp | orient_mode | calib_mode | NED
     return settings
@@ -2026,7 +2038,7 @@ def get_synchronization_settings(arg):
             # convert string to int
             sync_settings = tuple([int(i) for i in sync_settings])
         except ValueError:
-            print "Synchronization sync_settings must be integers."
+            print("Synchronization sync_settings must be integers.")
             return
         # check synchronization sync_settings
         if sync_settings[0] in (3, 4, 8, 9, 11) and \
@@ -2035,7 +2047,7 @@ def get_synchronization_settings(arg):
            sync_settings[3] in (0, 1):
             return sync_settings
         else:
-            print "Invalid synchronization settings."
+            print("Invalid synchronization settings.")
             return
 
 
@@ -2061,7 +2073,7 @@ def get_UTCtime(arg):
         try:
             time_settings = [int(i) for i in time_settings]
         except ValueError:
-            print "UTCtime settings must be integers."
+            print("UTCtime settings must be integers.")
             return
 
         # check UTCtime settings
@@ -2074,7 +2086,7 @@ def get_UTCtime(arg):
            0 <= time_settings[6] <= 1000000000:
             return time_settings
         else:
-            print "Invalid UTCtime settings."
+            print("Invalid UTCtime settings.")
             return
 
 
@@ -2083,12 +2095,12 @@ def get_gnss_platform(arg):
     try:
         platform = int(arg)
     except ValueError:
-        print "GNSS platform must be an integer."
+        print("GNSS platform must be an integer.")
         return
     if platform in (0, 8):
         return platform
     else:
-        print "Invalid GNSS platform argument (excepted 0 or 8)."
+        print("Invalid GNSS platform argument (excepted 0 or 8).")
         return
 
 
@@ -2099,8 +2111,8 @@ def get_option_flags(arg):
                                    arg.split(','))
         return (set_flag, clear_flag)
     except ValueError:
-        print 'incorrect option flags specification (expected a pair of '\
-              'values)'
+        print('incorrect option flags specification (expected a pair of '
+              'values)')
         return
 
 
@@ -2112,7 +2124,7 @@ def get_icc_command(arg):
             raise ValueError
         return icc_command
     except ValueError:
-        print 'invalid ICC command "%s"; expected 0, 1, 2, or 3.' % arg
+        print('invalid ICC command "%s"; expected 0, 1, 2, or 3.' % arg)
         return
 
 

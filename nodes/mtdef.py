@@ -166,7 +166,7 @@ class DeprecatedMID:
 def getName(cls, value):
     '''Return the name of the first found member of class cls with given
     value.'''
-    for k, v in cls.__dict__.iteritems():
+    for k, v in cls.__dict__.items():
         if v == value:
             return k
     return ''

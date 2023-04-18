@@ -1,7 +1,7 @@
 """Constant and messages definition for MT communication."""
+from enum import Enum
 
-
-class DeviceState:
+class DeviceState(Enum):
     """State of the device"""
     # measurement state
     Measurement = 0
@@ -9,7 +9,7 @@ class DeviceState:
     Config = 1
 
 
-class MID:
+class MID(Enum):
     """Values for the message id (MID)"""
     # State MID
     # Wake up procedure
@@ -123,7 +123,7 @@ class MID:
     IccCommand = 0x74
 
 
-class DeprecatedMID:
+class DeprecatedMID(Enum):
     """Deprecated message Ids."""
     # Informational messages
     # Compatibility for XBus Master users
@@ -164,16 +164,16 @@ class DeprecatedMID:
 
 
 def getName(cls, value):
-    '''Return the name of the first found member of class cls with given
-    value.'''
-    for k, v in cls.__dict__.iteritems():
-        if v == value:
-            return k
-    return ''
+    """Return the name of the first found member of class cls with given
+    value."""
+    try:
+        return cls(value).name
+    except ValueError:
+        return ''
 
 
 def getMIDName(mid):
-    '''Return the name of a message given the message id.'''
+    """Return the name of a message given the message id."""
     name = getName(MID, mid)
     if name:
         return name
@@ -223,7 +223,7 @@ class Baudrates(object):
         raise MTException("unknown baudrate id.")
 
 
-class OutputMode:
+class OutputMode(Enum):
     """Values for the output mode."""
     Temp = 0x0001
     Calib = 0x0002
@@ -236,7 +236,7 @@ class OutputMode:
     RAW = 0x4000  # incompatible with all except RAWGPS
 
 
-class OutputSettings:
+class OutputSettings(Enum):
     """Values for the output settings."""
     Timestamp_None = 0x00000000
     Timestamp_SampleCnt = 0x00000001
@@ -263,7 +263,7 @@ class OutputSettings:
     Coordinates_NED = 0x80000000
 
 
-class XDIGroup:
+class XDIGroup(Enum):
     """Values for the XDI groups."""
     Temperature = 0x0800
     Timestamp = 0x1000

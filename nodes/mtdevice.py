@@ -612,6 +612,7 @@ class MTDevice(object):
     def SetNoRotation(self, duration):
         """Initiate the "no rotation" procedure to estimate gyro biases."""
         self._ensure_measurement_state()
+        time.sleep(0.01)
         data = struct.pack('!H', duration)
         self.write_ack(MID.SetNoRotation, data)
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('xsens_driver')
 import rospy
 import select
 import sys
 
-import mtdevice
-import mtdef
+from xsens_driver import mtdevice
+from xsens_driver import mtdef
 
 from std_msgs.msg import Header, String, UInt16
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus, MagneticField,\

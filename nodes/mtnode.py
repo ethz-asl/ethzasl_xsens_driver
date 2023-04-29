@@ -138,6 +138,7 @@ class XSensDriver(object):
         self.imu_msg.angular_velocity_covariance = (-1., )*9
         self.imu_msg.linear_acceleration_covariance = (-1., )*9
         self.pub_imu = False
+        self.pub_syncout_timeref = False
         self.raw_gps_msg = NavSatFix()
         self.pub_raw_gps = False
         self.pos_gps_msg = NavSatFix()
@@ -409,6 +410,9 @@ class XSensDriver(object):
                 self.pos_gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
                 self.pos_gps_msg.status.service = 0
 
+            if status & 0x400000:
+                self.pub_syncout_timeref = True
+
         def fill_from_Sample(ts):
             '''Catch 'Sample' MTData blocks.'''
             self.h.seq = ts
@@ -451,6 +455,11 @@ class XSensDriver(object):
                 publish_time_ref(sample_time_coarse, 0, 'sample time coarse')
             except KeyError:
                 pass
+
+            if self.pub_syncout_timeref:
+                secs = self.h.stamp.secs
+                nsecs = self.h.stamp.nsecs
+                publish_time_ref(secs, nsecs, "Syncout fire")
             # TODO find what to do with other kind of information
             pass
 

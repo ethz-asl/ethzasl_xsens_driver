@@ -56,6 +56,7 @@ class XSensDriver(object):
         baudrate = get_param('~baudrate', 0)
         timeout = get_param('~timeout', 0.002)
         initial_wait = get_param('~initial_wait', 0.1)
+        set_geo_coordinates = get_param('~set_geo_coordinates', '51.5,-0.09,0.0')
         if device == 'auto':
             devs = mtdevice.find_devices(timeout=timeout,
                                          initial_wait=initial_wait)
@@ -78,6 +79,15 @@ class XSensDriver(object):
         rospy.loginfo("MT node interface: %s at %d bd." % (device, baudrate))
         self.mt = mtdevice.MTDevice(device, baudrate, timeout,
                                     initial_wait=initial_wait)
+
+        if set_geo_coordinates:
+            coords = set_geo_coordinates.split(",")
+            if len(coords) != 3:
+                raise RuntimeError("set_geo_coordinates wrongly formatted: " \
+                                   "can only take 3 values comma separated")
+            lat, lng, alt = float(coords[0]), float(coords[1]), float(coords[2])
+            rospy.loginfo("Setting Lat, Lng, Alt: %f, %f, %f" % (lat, lng, alt))
+            self.mt.SetLatLonAlt(lat, lng, alt)
 
         # optional no rotation procedure for internal calibration of biases
         # (only mark iv devices)

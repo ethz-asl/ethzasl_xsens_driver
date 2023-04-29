@@ -1,0 +1,14 @@
+<robot
+  name="xsens_test" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:property name="M_PI" value="3.1415926535897931" />
+  <link
+    name="base_link">
+
+  </link>
+
+  <xacro:include filename="$(find seabed_drivers)/urdf/xsens_mti.urdf.xacro"/>
+  <imu parent="base_link" name="imu">
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  </imu> 
+
+</robot>
